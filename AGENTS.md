@@ -27,6 +27,7 @@ internal/
     loader_test.go
   git/                      # Git porcelain output parsing (zero deps)
     git.go                  # IsInsideWorkTree, WorkTreeRoot, Status
+  settings/                 # XDG TOML config, embedded themes, keymap defaults/validation
   ui/                       # Bubble Tea model, views, handlers
     model.go                # Model struct, Mode/Tab enums, New(), Init(), View()
     update.go               # Update loop: dispatch by msg type and mode
@@ -87,6 +88,9 @@ openspec/                   # OpenSpec project artifacts (not Go code)
 25. **`renderWidth()` minimum is 80**: when `m.width-2 < 20`, glamour renders at 80 columns.
 26. **Specs structure**: inside a change, `specs/<name>/spec.md`. Project-level: `openspec/specs/<name>/spec.md`.
 27. **Read-only is explicit launch state**: `--read-only` is passed into `ui.New`/`NewSinglePath` and blocks all three dossier-initiated mutation paths: `doToggle`, external editor launch, and Git stage/unstage. Git status/diff and navigation remain active; disabled mutation hints are omitted from the help bar.
+28. **User settings are strict XDG TOML**: `internal/settings.Load` reads `${XDG_CONFIG_HOME:-os.UserConfigDir()}/dossier/config.toml`; a missing default is allowed, but explicit/malformed/unknown settings fail startup. Built-in palettes (`none`, `dark`, `light`, `dracula`, `gruvbox-light-soft`) are embedded from `internal/settings/themes/*.toml`.
+29. **Keybindings are context-specific actions**: handlers match `settings.KeyConfig` via `matchesKey`; defaults are supplied for zero-value test models by `effectiveKeyMap`. Help labels must use the key-label helpers rather than hardcoded key names.
+30. **Runtime themes merge sparse overrides onto a base**: `ui.BuildTheme` constructs Lip Gloss styles, Glamour `ansi.StyleConfig`, and a Chroma style. Do not reintroduce fallback color literals in rendering paths.
 
 ## Testing Patterns
 

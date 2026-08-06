@@ -20,6 +20,8 @@ A keyboard-driven terminal UI for reading and navigating [OpenSpec](https://gith
 - Live-reloads on disk changes (500 ms polling)
 - Opens any artifact in `$EDITOR`
 - Offers `--read-only` mode for safe review without task, editor, or Git index mutations
+- Supports XDG TOML configuration for custom UI, Glamour, and Chroma colors
+- Supports context-specific custom keybindings with dynamic help labels
 - Accepts a path argument to view a single change directory without a full project
 
 ---
@@ -67,6 +69,31 @@ dossier --read-only /path/to/openspec/changes/my-change
 ```
 
 Use `dossier -h` or `dossier --help` for all command-line options. Read-only mode remains visible in the help bar; navigation, live reload, Git status, and diff viewing stay available.
+
+### Configuration
+
+Dossier loads optional TOML configuration from the XDG path:
+
+```text
+${XDG_CONFIG_HOME:-~/.config}/dossier/config.toml
+```
+
+Use another file with `dossier --config <path>`. A missing default file is ignored; a missing explicit file or invalid setting produces a startup error. `--theme` overrides the configured base theme while preserving custom color overrides. Built-in themes are `none`, `dark`, `light`, `dracula`, and `gruvbox-light-soft`:
+
+```bash
+dossier --theme gruvbox-light-soft
+```
+
+Copy the complete light-terminal example, which documents every Dossier color and key action plus Glamour/Chroma token overrides:
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/dossier"
+cp examples/config.example.toml "${XDG_CONFIG_HOME:-$HOME/.config}/dossier/config.toml"
+```
+
+A Pi-aligned Gruvbox Light Soft example is also available at `examples/config.gruvbox-light-soft.toml`.
+
+Keybindings are context-specific, so a key may be reused in different modes but cannot be assigned to two actions in the same mode. Help labels automatically reflect the configured bindings.
 
 ### Keyboard reference
 

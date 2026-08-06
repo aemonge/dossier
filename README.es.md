@@ -20,6 +20,8 @@ Interfaz de terminal controlada por teclado para leer y navegar artefactos de pr
 - Recarga en vivo ante cambios en disco (sondeo cada 500 ms)
 - Abre cualquier artefacto en `$EDITOR`
 - Ofrece el modo `--read-only` para revisar sin modificar tareas, archivos mediante el editor ni el índice de Git
+- Admite configuración TOML XDG para personalizar los colores de la interfaz, Glamour y Chroma
+- Admite atajos personalizados por contexto con ayuda dinámica
 - Acepta una ruta como argumento para ver un cambio concreto sin necesitar un proyecto completo
 
 ---
@@ -67,6 +69,31 @@ dossier --read-only /ruta/a/openspec/changes/mi-cambio
 ```
 
 Usa `dossier -h` o `dossier --help` para ver todas las opciones. El modo de solo lectura permanece visible en la barra de ayuda; la navegación, recarga en vivo, estado de Git y vista de diferencias siguen disponibles.
+
+### Configuración
+
+Dossier carga configuración TOML opcional desde la ruta XDG:
+
+```text
+${XDG_CONFIG_HOME:-~/.config}/dossier/config.toml
+```
+
+Usa otro archivo con `dossier --config <ruta>`. La ausencia del archivo predeterminado se ignora; un archivo explícito ausente o una opción inválida produce un error al iniciar. `--theme` sustituye el tema base configurado conservando los colores personalizados. Los temas incluidos son `none`, `dark`, `light`, `dracula` y `gruvbox-light-soft`:
+
+```bash
+dossier --theme gruvbox-light-soft
+```
+
+Puedes copiar el ejemplo completo para terminales claras, que documenta todos los colores y acciones de teclado de Dossier, además de los tokens de Glamour/Chroma:
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/dossier"
+cp examples/config.example.toml "${XDG_CONFIG_HOME:-$HOME/.config}/dossier/config.toml"
+```
+
+También hay un ejemplo Gruvbox Light Soft alineado con Pi en `examples/config.gruvbox-light-soft.toml`.
+
+Los atajos dependen del contexto: una tecla puede reutilizarse en modos distintos, pero no asignarse a dos acciones dentro del mismo modo. La barra de ayuda refleja automáticamente los atajos configurados.
 
 ### Referencia de teclado
 
