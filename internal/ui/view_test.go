@@ -484,7 +484,7 @@ func TestUpdateKeyPresses(t *testing.T) {
 		}
 	})
 
-	t.Run("H and L switch visible artifact tabs", func(t *testing.T) {
+	t.Run("h and l switch visible artifact tabs", func(t *testing.T) {
 		m := Model{
 			mode:   ModeNormal,
 			tab:    TabProposal,
@@ -498,16 +498,16 @@ func TestUpdateKeyPresses(t *testing.T) {
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 		m.vpReady = true
 
-		result, _ := m.dispatchKey(tea.KeyPressMsg{Text: "L"})
+		result, _ := m.dispatchKey(tea.KeyPressMsg{Text: "l"})
 		m = result.(Model)
 		if m.tab != TabDesign {
-			t.Fatalf("L should select next artifact, got tab %d", m.tab)
+			t.Fatalf("l should select next artifact, got tab %d", m.tab)
 		}
 
-		result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "H"})
+		result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "h"})
 		m = result.(Model)
 		if m.tab != TabProposal {
-			t.Fatalf("H should select previous artifact, got tab %d", m.tab)
+			t.Fatalf("h should select previous artifact, got tab %d", m.tab)
 		}
 	})
 

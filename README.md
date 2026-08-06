@@ -105,8 +105,8 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 | `k` / `up` | Scroll up (or move task cursor up) |
 | `PgDown` / `Ctrl+D` | Scroll one page down |
 | `PgUp` / `Ctrl+U` | Scroll one page up |
-| `h` / `l` | Scroll horizontally left / right |
-| `H` / `L` | Previous / next artifact tab |
+| `H` / `L` | Scroll horizontally left / right |
+| `h` / `l` | Previous / next artifact tab |
 | `Tab` / `Shift+Tab` | Next / previous change |
 | `1`–`5` | Select an artifact tab directly |
 | `Space` | Toggle task under cursor (tasks tab only) |
@@ -134,7 +134,7 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 | `j` / `k` | Scroll |
 | `PgDown` / `Ctrl+D` | Scroll one page down |
 | `PgUp` / `Ctrl+U` | Scroll one page up |
-| `H` / `L` | Previous / next artifact tab |
+| `h` / `l` | Previous / next artifact tab |
 | `1`–`4` | Select an artifact tab directly |
 | `q` / `Esc` | Return to index |
 | `Q` | Quit |

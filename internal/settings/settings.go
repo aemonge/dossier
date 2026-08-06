@@ -291,10 +291,10 @@ func nvimKeys() KeyConfig {
 		Style: "nvim",
 		Viewer: KeyViewer{
 			Quit: []string{"Q"}, Stage: []string{"s"}, Info: []string{"?"}, Back: []string{"q", "esc"},
-			Previous: []string{"shift+tab"}, Next: []string{"tab"}, Right: []string{"l", "right"}, Left: []string{"h", "left"},
+			Previous: []string{"shift+tab"}, Next: []string{"tab"}, Right: []string{"L", "right"}, Left: []string{"H", "left"},
 			NextDiff: []string{"]"}, PreviousDiff: []string{"["}, ProposalTab: []string{"1"}, DesignTab: []string{"2"},
-			SpecsTab: []string{"3"}, TasksTab: []string{"4"}, GitTab: []string{"5"}, NextTab: []string{"L"},
-			PreviousTab: []string{"H"}, ViewDiff: []string{"d", "enter"}, Down: []string{"j", "down"},
+			SpecsTab: []string{"3"}, TasksTab: []string{"4"}, GitTab: []string{"5"}, NextTab: []string{"l"},
+			PreviousTab: []string{"h"}, ViewDiff: []string{"d", "enter"}, Down: []string{"j", "down"},
 			PageDown: []string{"pgdown", "ctrl+d"}, Up: []string{"k", "up"}, PageUp: []string{"pgup", "ctrl+u"},
 			ToggleTask: []string{"space"}, Open: []string{"e"},
 		},

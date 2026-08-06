@@ -5,7 +5,7 @@
 - [x] 1.3 Implement typed default keymaps, merging, matching, and validation
 - [x] 1.4 Replace legacy bindings with the approved Neovim-oriented defaults
 - [x] 1.5 Add named key-style base selection through TOML and `--keystyle`
-- [x] 1.6 Map `H`/`L` to visible artifacts and Tab/Shift+Tab to changes
+- [x] 1.6 Map `h`/`l` to visible artifacts, `H`/`L` horizontally, and Tab/Shift+Tab to changes
 
 ## 2. Handler integration
 

@@ -10,7 +10,7 @@ Define typed bindings for viewer, index, filter editor, spec viewer, and config 
 
 ### D2: Base plus sparse overrides
 
-Named key styles provide a base, with `nvim` as the default. `--keystyle` overrides the configured base name while sparse `[keys.*]` action overrides still apply, mirroring `--theme` precedence. The Neovim profile uses `q` to back out, `Q` to quit, `H`/`L` to switch visible artifacts, `h`/`l` to move horizontally, and `Tab`/`Shift+Tab` to switch the less-visible change dimension. Page keys remain primary while `Ctrl+U`/`Ctrl+D` are aliases.
+Named key styles provide a base, with `nvim` as the default. `--keystyle` overrides the configured base name while sparse `[keys.*]` action overrides still apply, mirroring `--theme` precedence. The Neovim profile uses `q` to back out, `Q` to quit, `h`/`l` to switch visible artifacts, `H`/`L` to move horizontally, and `Tab`/`Shift+Tab` to switch the less-visible change dimension. Page keys remain primary while `Ctrl+U`/`Ctrl+D` are aliases.
 
 ### D3: Context-local collision validation
 

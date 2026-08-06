@@ -65,14 +65,14 @@ func TestDefaultHelpShowsVisibleArtifactsAndHiddenChanges(t *testing.T) {
 	if !strings.Contains(help, "Shift+Tab/Tab: change") {
 		t.Fatalf("change navigation help missing: %q", help)
 	}
-	if !strings.Contains(help, "H/L: artifact") {
+	if !strings.Contains(help, "h/l: artifact") {
 		t.Fatalf("artifact navigation help missing: %q", help)
 	}
 
 	m.tab = TabGit
 	m.gitState.ShowingDiff = true
 	help = m.renderHelpBar()
-	if !strings.Contains(help, "h/l: horizontal") {
+	if !strings.Contains(help, "H/L: horizontal") {
 		t.Fatalf("diff horizontal help missing: %q", help)
 	}
 	if strings.Contains(help, "Shift+Tab/Tab: horizontal") {

@@ -2,14 +2,14 @@
 
 ### Requirement: Neovim-oriented default keymap
 
-The system SHALL provide a modifier-light Neovim-oriented default keymap in which `q` backs out, `Q` quits, `H`/`L` select the previous/next visible artifact, `h`/`l` move horizontally, and `Tab`/`Shift+Tab` select the next/previous change. `PgUp`/`PgDown` SHALL perform page scrolling with `Ctrl+U`/`Ctrl+D` as aliases.
+The system SHALL provide a modifier-light Neovim-oriented default keymap in which `q` backs out, `Q` quits, `h`/`l` select the previous/next visible artifact, `H`/`L` move horizontally, and `Tab`/`Shift+Tab` select the next/previous change. `PgUp`/`PgDown` SHALL perform page scrolling with `Ctrl+U`/`Ctrl+D` as aliases.
 
 #### Scenario: Navigate through index
 - **WHEN** the user presses `q` in a change viewer and then `l` on an index item
 - **THEN** Dossier enters the index and opens the selected item
 
 #### Scenario: Navigate visible artifacts
-- **WHEN** the user presses `H` or `L` in a change viewer
+- **WHEN** the user presses `h` or `l` in a change viewer
 - **THEN** Dossier selects the previous or next visible artifact tab
 
 #### Scenario: Navigate hidden changes
