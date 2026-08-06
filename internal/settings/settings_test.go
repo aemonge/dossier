@@ -153,6 +153,45 @@ func TestDocumentedExampleConfigsLoad(t *testing.T) {
 	}
 }
 
+func TestDefaultKeysUseNeovimProfile(t *testing.T) {
+	keys := DefaultKeys()
+	checks := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{name: "viewer quit", got: keys.Viewer.Quit, want: []string{"Q"}},
+		{name: "viewer back", got: keys.Viewer.Back, want: []string{"q", "esc"}},
+		{name: "viewer info", got: keys.Viewer.Info, want: []string{"?"}},
+		{name: "viewer changes", got: append(append([]string{}, keys.Viewer.Previous...), keys.Viewer.Next...), want: []string{"H", "L"}},
+		{name: "viewer horizontal", got: append(append([]string{}, keys.Viewer.Left...), keys.Viewer.Right...), want: []string{"h", "left", "l", "right"}},
+		{name: "viewer pages", got: append(append([]string{}, keys.Viewer.PageUp...), keys.Viewer.PageDown...), want: []string{"pgup", "ctrl+u", "pgdown", "ctrl+d"}},
+		{name: "index open", got: keys.Index.Open, want: []string{"l", "enter"}},
+		{name: "index back", got: keys.Index.Back, want: []string{"q", "Q", "esc"}},
+		{name: "spec quit", got: keys.Spec.Quit, want: []string{"Q"}},
+		{name: "spec back", got: keys.Spec.Back, want: []string{"q", "esc"}},
+		{name: "config back", got: keys.Config.Back, want: []string{"q", "?", "esc"}},
+	}
+	for _, check := range checks {
+		if !reflect.DeepEqual(check.got, check.want) {
+			t.Errorf("%s = %v, want %v", check.name, check.got, check.want)
+		}
+	}
+
+	root := reflect.ValueOf(keys)
+	for i := range root.NumField() {
+		context := root.Field(i)
+		contextType := context.Type()
+		for j := range context.NumField() {
+			for _, key := range context.Field(j).Interface().([]string) {
+				if strings.HasPrefix(key, "ctrl+") && key != "ctrl+u" && key != "ctrl+d" {
+					t.Errorf("unexpected Ctrl binding %s.%s=%q", root.Type().Field(i).Tag.Get("toml"), contextType.Field(j).Tag.Get("toml"), key)
+				}
+			}
+		}
+	}
+}
+
 func TestDefaultKeysBindEveryAction(t *testing.T) {
 	keys := DefaultKeys()
 	root := reflect.ValueOf(keys)

@@ -101,17 +101,19 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 
 | Key | Action |
 |---|---|
-| `h` / `l` | Previous / next change |
-| `1` | Proposal tab |
-| `2` | Design tab |
-| `3` | Specs tab (press again to cycle through multiple spec files) |
-| `4` | Tasks tab |
 | `j` / `down` | Scroll down (or move task cursor down) |
 | `k` / `up` | Scroll up (or move task cursor up) |
+| `PgDown` / `Ctrl+D` | Scroll one page down |
+| `PgUp` / `Ctrl+U` | Scroll one page up |
+| `h` / `l` | Scroll horizontally left / right |
+| `H` / `L` | Previous / next change |
+| `Tab` / `Shift+Tab` | Next / previous artifact tab |
+| `1`–`5` | Select an artifact tab directly |
 | `Space` | Toggle task under cursor (tasks tab only) |
 | `e` | Open artifact in `$EDITOR` |
-| `a` / `Esc` | Enter index mode |
-| `q` / `Ctrl+C` | Quit |
+| `?` | Open configuration information |
+| `q` / `Esc` | Enter index mode |
+| `Q` | Quit |
 
 #### Index mode (change and spec navigator)
 
@@ -119,26 +121,33 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 |---|---|
 | `j` / `down` | Move cursor down |
 | `k` / `up` | Move cursor up |
-| `Enter` | Open selected change, spec, or archived change |
+| `l` / `Enter` | Open selected change, spec, or archived change |
 | `Space` | Expand / collapse a project spec |
-| `q` / `Esc` / `Ctrl+C` | Quit |
+| `/` | Filter index items |
+| `?` | Open configuration information |
+| `q` / `Q` / `Esc` | Quit from the root index |
 
 #### Archive mode (viewing an archived change)
 
 | Key | Action |
 |---|---|
-| `1`–`4` | Switch artifact tab |
 | `j` / `k` | Scroll |
-| `a` / `Esc` | Return to index |
-| `q` / `Ctrl+C` | Quit |
+| `PgDown` / `Ctrl+D` | Scroll one page down |
+| `PgUp` / `Ctrl+U` | Scroll one page up |
+| `Tab` / `Shift+Tab` | Next / previous artifact tab |
+| `1`–`4` | Select an artifact tab directly |
+| `q` / `Esc` | Return to index |
+| `Q` | Quit |
 
 #### Spec viewer mode
 
 | Key | Action |
 |---|---|
 | `j` / `k` | Scroll |
-| `Esc` | Return to index |
-| `q` / `Ctrl+C` | Quit |
+| `PgDown` / `Ctrl+D` | Scroll one page down |
+| `PgUp` / `Ctrl+U` | Scroll one page up |
+| `q` / `Esc` | Return to index |
+| `Q` | Quit |
 
 In requirement focus mode:
 
@@ -146,8 +155,10 @@ In requirement focus mode:
 |---|---|
 | `h` / `l` | Previous / next requirement |
 | `j` / `k` | Scroll |
-| `Esc` | Return to index |
-| `q` / `Ctrl+C` | Quit |
+| `PgDown` / `Ctrl+D` | Scroll one page down |
+| `PgUp` / `Ctrl+U` | Scroll one page up |
+| `q` / `Esc` | Return to index |
+| `Q` | Quit |
 
 ---
 

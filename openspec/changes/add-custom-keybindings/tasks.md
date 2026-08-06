@@ -3,6 +3,7 @@
 - [x] 1.1 Add characterization tests for every default context/action binding
 - [x] 1.2 Add failing tests for sparse TOML overrides, unknown actions, invalid keys, and context-local collisions
 - [x] 1.3 Implement typed default keymaps, merging, matching, and validation
+- [x] 1.4 Replace legacy bindings with the approved Neovim-oriented defaults
 
 ## 2. Handler integration
 

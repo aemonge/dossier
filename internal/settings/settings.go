@@ -252,26 +252,26 @@ func mergeStringMap(base, override map[string]string) map[string]string {
 func DefaultKeys() KeyConfig {
 	return KeyConfig{
 		Viewer: KeyViewer{
-			Quit: []string{"q", "ctrl+c"}, Stage: []string{"s"}, Info: []string{"i"}, Back: []string{"a", "esc"},
-			Previous: []string{"h"}, Next: []string{"l"}, Right: []string{"right"}, Left: []string{"left"},
+			Quit: []string{"Q"}, Stage: []string{"s"}, Info: []string{"?"}, Back: []string{"q", "esc"},
+			Previous: []string{"H"}, Next: []string{"L"}, Right: []string{"l", "right"}, Left: []string{"h", "left"},
 			NextDiff: []string{"]"}, PreviousDiff: []string{"["}, ProposalTab: []string{"1"}, DesignTab: []string{"2"},
 			SpecsTab: []string{"3"}, TasksTab: []string{"4"}, GitTab: []string{"5"}, NextTab: []string{"tab"},
 			PreviousTab: []string{"shift+tab"}, ViewDiff: []string{"d", "enter"}, Down: []string{"j", "down"},
-			PageDown: []string{"pgdown"}, Up: []string{"k", "up"}, PageUp: []string{"pgup"},
+			PageDown: []string{"pgdown", "ctrl+d"}, Up: []string{"k", "up"}, PageUp: []string{"pgup", "ctrl+u"},
 			ToggleTask: []string{"space"}, Open: []string{"e"},
 		},
 		Index: KeyIndex{
-			Filter: []string{"/"}, Info: []string{"i"}, Back: []string{"esc"}, Down: []string{"j", "down"},
-			Up: []string{"k", "up"}, Open: []string{"enter"}, Toggle: []string{"space"}, Sort: []string{"s"},
+			Filter: []string{"/"}, Info: []string{"?"}, Back: []string{"q", "Q", "esc"}, Down: []string{"j", "down"},
+			Up: []string{"k", "up"}, Open: []string{"l", "enter"}, Toggle: []string{"space"}, Sort: []string{"s"},
 		},
 		Filter: KeyFilter{Cancel: []string{"esc"}, Accept: []string{"enter"}, Backspace: []string{"backspace"}},
 		Spec: KeySpec{
-			Quit: []string{"q", "ctrl+c"}, Back: []string{"esc"}, Down: []string{"j", "down"}, Up: []string{"k", "up"},
-			PageDown: []string{"pgdown"}, PageUp: []string{"pgup"}, PreviousRequirement: []string{"h"}, NextRequirement: []string{"l"},
+			Quit: []string{"Q"}, Back: []string{"q", "esc"}, Down: []string{"j", "down"}, Up: []string{"k", "up"},
+			PageDown: []string{"pgdown", "ctrl+d"}, PageUp: []string{"pgup", "ctrl+u"}, PreviousRequirement: []string{"h"}, NextRequirement: []string{"l"},
 		},
 		Config: KeyConfigView{
-			Back: []string{"q", "ctrl+c", "i", "esc"}, Down: []string{"j", "down"}, Up: []string{"k", "up"},
-			PageDown: []string{"pgdown"}, PageUp: []string{"pgup"},
+			Back: []string{"q", "?", "esc"}, Down: []string{"j", "down"}, Up: []string{"k", "up"},
+			PageDown: []string{"pgdown", "ctrl+d"}, PageUp: []string{"pgup", "ctrl+u"},
 		},
 	}
 }

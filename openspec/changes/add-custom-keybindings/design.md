@@ -10,7 +10,7 @@ Define typed bindings for viewer, index, filter editor, spec viewer, and config 
 
 ### D2: Base plus sparse overrides
 
-Default bindings preserve current behavior. TOML replaces only actions it names, allowing small personal keymap files.
+Default bindings use a coherent Neovim-oriented profile: `q` backs out, `Q` quits, `H`/`L` switch changes, `h`/`l` move horizontally, and `Tab`/`Shift+Tab` switch artifacts. Page keys remain primary while `Ctrl+U`/`Ctrl+D` are aliases. TOML replaces only actions it names, allowing small personal keymap files.
 
 ### D3: Context-local collision validation
 

@@ -101,17 +101,19 @@ Los atajos dependen del contexto: una tecla puede reutilizarse en modos distinto
 
 | Tecla | Acción |
 |---|---|
-| `h` / `l` | Cambio anterior / siguiente |
-| `1` | Pestaña de propuesta |
-| `2` | Pestaña de diseño |
-| `3` | Pestaña de specs (pulsando de nuevo se cicla entre varios archivos) |
-| `4` | Pestaña de tareas |
 | `j` / `↓` | Desplazar hacia abajo (o mover cursor de tareas hacia abajo) |
 | `k` / `↑` | Desplazar hacia arriba (o mover cursor de tareas hacia arriba) |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
+| `h` / `l` | Desplazar horizontalmente a izquierda / derecha |
+| `H` / `L` | Cambio anterior / siguiente |
+| `Tab` / `Shift+Tab` | Pestaña de artefacto siguiente / anterior |
+| `1`–`5` | Seleccionar directamente una pestaña de artefacto |
 | `Space` | Alternar tarea bajo el cursor (solo en pestaña de tareas) |
 | `e` | Abrir artefacto en `$EDITOR` |
-| `a` / `Esc` | Entrar en modo índice |
-| `q` / `Ctrl+C` | Salir |
+| `?` | Abrir información de configuración |
+| `q` / `Esc` | Entrar en modo índice |
+| `Q` | Salir |
 
 #### Modo índice (navegador de cambios y specs)
 
@@ -119,26 +121,33 @@ Los atajos dependen del contexto: una tecla puede reutilizarse en modos distinto
 |---|---|
 | `j` / `↓` | Mover cursor hacia abajo |
 | `k` / `↑` | Mover cursor hacia arriba |
-| `Enter` | Abrir el cambio, spec o cambio archivado seleccionado |
+| `l` / `Enter` | Abrir el cambio, spec o cambio archivado seleccionado |
 | `Space` | Expandir / contraer una spec de proyecto |
-| `q` / `Esc` / `Ctrl+C` | Salir |
+| `/` | Filtrar elementos del índice |
+| `?` | Abrir información de configuración |
+| `q` / `Q` / `Esc` | Salir desde el índice raíz |
 
 #### Modo archivo (viendo un cambio archivado)
 
 | Tecla | Acción |
 |---|---|
-| `1`–`4` | Cambiar pestaña de artefacto |
 | `j` / `k` | Desplazar |
-| `a` / `Esc` | Volver al índice |
-| `q` / `Ctrl+C` | Salir |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
+| `Tab` / `Shift+Tab` | Pestaña de artefacto siguiente / anterior |
+| `1`–`4` | Seleccionar directamente una pestaña de artefacto |
+| `q` / `Esc` | Volver al índice |
+| `Q` | Salir |
 
 #### Modo visor de spec
 
 | Tecla | Acción |
 |---|---|
 | `j` / `k` | Desplazar |
-| `Esc` | Volver al índice |
-| `q` / `Ctrl+C` | Salir |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
+| `q` / `Esc` | Volver al índice |
+| `Q` | Salir |
 
 En modo foco de requisitos:
 
@@ -146,8 +155,10 @@ En modo foco de requisitos:
 |---|---|
 | `h` / `l` | Requisito anterior / siguiente |
 | `j` / `k` | Desplazar |
-| `Esc` | Volver al índice |
-| `q` / `Ctrl+C` | Salir |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
+| `q` / `Esc` | Volver al índice |
+| `Q` | Salir |
 
 ---
 

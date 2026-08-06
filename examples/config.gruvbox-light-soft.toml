@@ -3,7 +3,7 @@
 # Palette source: Pi's active `gruvbox-light-soft` community theme, aligned with
 # Neovim's light Gruvbox palette and Kitty's terminal background. Yellow accents
 # are intentionally replaced by Gruvbox orange, aqua, blue, or purple.
-# Filter controls use Ctrl+Space to accept and Ctrl+G to cancel, matching FZF.
+# Keybindings use Dossier's Neovim-oriented defaults below.
 
 [theme]
 # The built-in preserves Kitty's terminal background and supplies the full Pi-
@@ -178,21 +178,48 @@ Punctuation = "#3c3836"
 GenericDeleted = "#9d0006"
 GenericInserted = "#79740e"
 
-# Keep Vim-style movement. Add Ctrl+G as a consistent abort/back action across
-# tmux/FZF-like contexts while retaining the existing Esc fallback.
+# Neovim-oriented navigation. PgUp/PgDown remain the primary page labels;
+# Ctrl+U/Ctrl+D are familiar aliases.
 [keys.viewer]
-back = ["ctrl+g", "a", "esc"]
+quit = ["Q"]
+info = ["?"]
+back = ["q", "esc"]
+previous = ["H"]
+next = ["L"]
+right = ["l", "right"]
+left = ["h", "left"]
+next_tab = ["tab"]
+previous_tab = ["shift+tab"]
+down = ["j", "down"]
+page_down = ["pgdown", "ctrl+d"]
+up = ["k", "up"]
+page_up = ["pgup", "ctrl+u"]
 
 [keys.index]
-back = ["ctrl+g", "esc"]
+info = ["?"]
+back = ["q", "Q", "esc"]
+down = ["j", "down"]
+up = ["k", "up"]
+open = ["l", "enter"]
 
 [keys.filter]
-cancel = ["ctrl+g", "esc"]
-accept = ["ctrl+space", "enter"]
+cancel = ["esc"]
+accept = ["enter"]
 backspace = ["backspace"]
 
 [keys.spec]
-back = ["ctrl+g", "esc"]
+quit = ["Q"]
+back = ["q", "esc"]
+down = ["j", "down"]
+up = ["k", "up"]
+page_down = ["pgdown", "ctrl+d"]
+page_up = ["pgup", "ctrl+u"]
+previous_requirement = ["h"]
+next_requirement = ["l"]
 
 [keys.config]
-back = ["ctrl+g", "q", "ctrl+c", "i", "esc"]
+back = ["q", "?", "esc"]
+down = ["j", "down"]
+up = ["k", "up"]
+page_down = ["pgdown", "ctrl+d"]
+page_up = ["pgup", "ctrl+u"]

@@ -5,7 +5,7 @@ Dossier's keyboard controls are hardcoded across several mode handlers and dupli
 ## What Changes
 
 - Add context-specific action bindings to the XDG TOML configuration shared with custom themes.
-- Preserve multiple keys per action and all existing bindings by default.
+- Provide a coherent Neovim-oriented default keymap while preserving multiple keys per action.
 - Route every keyboard action through the active keymap, including filtering, tab selection, navigation, task actions, Git actions, spec focus navigation, and config viewing.
 - Validate duplicate keys within the same active context and reject unknown actions/invalid key names.
 - Generate help-bar key labels from the active bindings.

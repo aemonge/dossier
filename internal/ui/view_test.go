@@ -450,9 +450,9 @@ func TestRenderTasksContent(t *testing.T) {
 }
 
 func TestUpdateKeyPresses(t *testing.T) {
-	t.Run("q quits normal mode", func(t *testing.T) {
+	t.Run("Q quits normal mode", func(t *testing.T) {
 		m := Model{mode: ModeNormal}
-		msg := tea.KeyPressMsg{Text: "q"}
+		msg := tea.KeyPressMsg{Text: "Q"}
 		result, cmd := m.dispatchKey(msg)
 		if _, ok := result.(Model); !ok {
 			t.Error("expected Model result")
@@ -462,10 +462,10 @@ func TestUpdateKeyPresses(t *testing.T) {
 		}
 	})
 
-	t.Run("i enters config mode", func(t *testing.T) {
+	t.Run("question mark enters config mode", func(t *testing.T) {
 		m := Model{mode: ModeNormal, width: 80, height: 24}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
-		msg := tea.KeyPressMsg{Text: "i"}
+		msg := tea.KeyPressMsg{Text: "?"}
 		result, _ := m.dispatchKey(msg)
 		updated := result.(Model)
 		if updated.mode != ModeViewingConfig {
@@ -473,10 +473,10 @@ func TestUpdateKeyPresses(t *testing.T) {
 		}
 	})
 
-	t.Run("a enters index mode", func(t *testing.T) {
+	t.Run("q enters index mode", func(t *testing.T) {
 		m := Model{mode: ModeNormal, width: 80, height: 24, project: &openspec.Project{}, loader: testLoader()}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
-		msg := tea.KeyPressMsg{Text: "a"}
+		msg := tea.KeyPressMsg{Text: "q"}
 		result, _ := m.dispatchKey(msg)
 		updated := result.(Model)
 		if updated.mode != ModeIndex {
@@ -559,6 +559,25 @@ func TestUpdateKeyPresses(t *testing.T) {
 		updated := result.(Model)
 		if updated.vp.YOffset() >= offsetBefore {
 			t.Errorf("expected pgup to scroll back, offset before %d, after %d", offsetBefore, updated.vp.YOffset())
+		}
+	})
+
+	t.Run("ctrl+d and ctrl+u alias page scrolling", func(t *testing.T) {
+		m := Model{mode: ModeNormal, tab: TabProposal}
+		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(10))
+		m.vp.SetContent(strings.Repeat("line\n", 100))
+
+		result, _ := m.dispatchKey(tea.KeyPressMsg{Text: "ctrl+d"})
+		m = result.(Model)
+		if m.vp.YOffset() <= 1 {
+			t.Fatalf("expected ctrl+d to scroll a full page, got offset %d", m.vp.YOffset())
+		}
+
+		offsetBefore := m.vp.YOffset()
+		result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "ctrl+u"})
+		m = result.(Model)
+		if m.vp.YOffset() >= offsetBefore {
+			t.Fatalf("expected ctrl+u to scroll back, offset before %d, after %d", offsetBefore, m.vp.YOffset())
 		}
 	})
 

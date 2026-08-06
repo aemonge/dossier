@@ -1,5 +1,17 @@
 ## ADDED Requirements
 
+### Requirement: Neovim-oriented default keymap
+
+The system SHALL provide a modifier-light Neovim-oriented default keymap in which `q` backs out, `Q` quits, `H`/`L` select the previous/next change, `h`/`l` move horizontally, and `Tab`/`Shift+Tab` select artifact tabs. `PgUp`/`PgDown` SHALL perform page scrolling with `Ctrl+U`/`Ctrl+D` as aliases.
+
+#### Scenario: Navigate through index
+- **WHEN** the user presses `q` in a change viewer and then `l` on an index item
+- **THEN** Dossier enters the index and opens the selected item
+
+#### Scenario: Page-scroll aliases
+- **WHEN** the user presses `PgDown` or `Ctrl+D` in a scrollable viewer
+- **THEN** Dossier scrolls down one page
+
 ### Requirement: Context-specific custom keybindings
 
 The system SHALL load ordered key lists for every keyboard action from the XDG TOML configuration. Unspecified actions SHALL retain existing default bindings.
