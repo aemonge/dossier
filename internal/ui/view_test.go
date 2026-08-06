@@ -484,6 +484,55 @@ func TestUpdateKeyPresses(t *testing.T) {
 		}
 	})
 
+	t.Run("H and L switch visible artifact tabs", func(t *testing.T) {
+		m := Model{
+			mode:   ModeNormal,
+			tab:    TabProposal,
+			theme:  DarkTheme,
+			loader: testLoader(),
+			project: &openspec.Project{Changes: []openspec.Change{{
+				Proposal: openspec.Artifact{Present: true, Content: "proposal"},
+				Design:   openspec.Artifact{Present: true, Content: "design"},
+			}}},
+		}
+		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+		m.vpReady = true
+
+		result, _ := m.dispatchKey(tea.KeyPressMsg{Text: "L"})
+		m = result.(Model)
+		if m.tab != TabDesign {
+			t.Fatalf("L should select next artifact, got tab %d", m.tab)
+		}
+
+		result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "H"})
+		m = result.(Model)
+		if m.tab != TabProposal {
+			t.Fatalf("H should select previous artifact, got tab %d", m.tab)
+		}
+	})
+
+	t.Run("tab switches hidden changes while viewing a diff", func(t *testing.T) {
+		m := Model{
+			mode:   ModeNormal,
+			tab:    TabGit,
+			theme:  DarkTheme,
+			loader: testLoader(),
+			project: &openspec.Project{Changes: []openspec.Change{
+				{Name: "one", Proposal: openspec.Artifact{Present: true, Content: "one"}},
+				{Name: "two", Proposal: openspec.Artifact{Present: true, Content: "two"}},
+			}},
+			gitState: gitState{ShowingDiff: true},
+		}
+		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+		m.vpReady = true
+
+		result, _ := m.dispatchKey(tea.KeyPressMsg{Code: tea.KeyTab})
+		m = result.(Model)
+		if m.changeIdx != 1 {
+			t.Fatalf("Tab should select next change, got index %d", m.changeIdx)
+		}
+	})
+
 	t.Run("esc in index mode quits", func(t *testing.T) {
 		m := Model{mode: ModeIndex}
 		msg := tea.KeyPressMsg{Code: tea.KeyEsc}

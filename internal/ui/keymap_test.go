@@ -59,6 +59,27 @@ func TestCustomKeymapUpdatesHelp(t *testing.T) {
 	}
 }
 
+func TestDefaultHelpShowsVisibleArtifactsAndHiddenChanges(t *testing.T) {
+	m := Model{mode: ModeNormal, tab: TabProposal}
+	help := m.renderHelpBar()
+	if !strings.Contains(help, "Shift+Tab/Tab: change") {
+		t.Fatalf("change navigation help missing: %q", help)
+	}
+	if !strings.Contains(help, "H/L: artifact") {
+		t.Fatalf("artifact navigation help missing: %q", help)
+	}
+
+	m.tab = TabGit
+	m.gitState.ShowingDiff = true
+	help = m.renderHelpBar()
+	if !strings.Contains(help, "h/l: horizontal") {
+		t.Fatalf("diff horizontal help missing: %q", help)
+	}
+	if strings.Contains(help, "Shift+Tab/Tab: horizontal") {
+		t.Fatalf("change keys must not be advertised as horizontal: %q", help)
+	}
+}
+
 func TestReadOnlyCustomHelpOmitsMutationBindings(t *testing.T) {
 	keys := settings.DefaultKeys()
 	keys.Viewer.ToggleTask = []string{"x"}

@@ -237,7 +237,7 @@ func (m *Model) renderHelpBar() string {
 	if m.isGitRepo && m.mode == ModeNormal {
 		tabKeys = combinedKeyLabel(keys.ProposalTab, keys.DesignTab, keys.SpecsTab, keys.TasksTab, keys.GitTab)
 	}
-	tabKeys += "/" + primaryKeyLabel(keys.NextTab)
+	tabKeys += "/" + pairedKeyLabel(keys.PreviousTab, keys.NextTab)
 	if m.mode == ModeViewingArchive {
 		return m.theme.Styles.Help.Render(m.helpText(
 			tabKeys + ": artifact  " + pairedKeyLabel(keys.Down, keys.Up) + ": scroll  " +
@@ -251,7 +251,7 @@ func (m *Model) renderHelpBar() string {
 		if m.gitState.ShowingDiff {
 			text := combinedKeyLabel(keys.ViewDiff, keys.Back) + ": back  " + pairedKeyLabel(keys.PreviousDiff, keys.NextDiff) +
 				": previous/next  " + pairedKeyLabel(keys.Down, keys.Up) + ": vertical  " +
-				pairedKeyLabel(keys.Previous, keys.Next) + ": horizontal  " + combinedKeyLabel(keys.Quit) + ": quit"
+				pairedKeyLabel(keys.Left, keys.Right) + ": horizontal  " + combinedKeyLabel(keys.Quit) + ": quit"
 			return m.theme.Styles.Help.Render(m.helpText(text))
 		}
 		text := pairedKeyLabel(keys.Previous, keys.Next) + ": change  " + tabKeys + ": artifact  " +

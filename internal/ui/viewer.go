@@ -65,13 +65,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case matchesKey(msg, keys.Previous):
-		if m.tab == TabGit && m.gitState.ShowingDiff {
-			m.gitState.ScrollX -= 10
-			if m.gitState.ScrollX < 0 {
-				m.gitState.ScrollX = 0
-			}
-			m.refreshGitViewport()
-		} else if len(m.project.Changes) > 0 {
+		if len(m.project.Changes) > 0 {
 			m.changeIdx = (m.changeIdx - 1 + len(m.project.Changes)) % len(m.project.Changes)
 			m.renderCache = make(map[Tab]string)
 			m.loadTaskItems()
@@ -81,10 +75,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case matchesKey(msg, keys.Next):
-		if m.tab == TabGit && m.gitState.ShowingDiff {
-			m.gitState.ScrollX += 10
-			m.refreshGitViewport()
-		} else if len(m.project.Changes) > 0 {
+		if len(m.project.Changes) > 0 {
 			m.changeIdx = (m.changeIdx + 1) % len(m.project.Changes)
 			m.renderCache = make(map[Tab]string)
 			m.loadTaskItems()

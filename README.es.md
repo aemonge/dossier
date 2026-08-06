@@ -106,8 +106,8 @@ Los atajos dependen del contexto: una tecla puede reutilizarse en modos distinto
 | `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
 | `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
 | `h` / `l` | Desplazar horizontalmente a izquierda / derecha |
-| `H` / `L` | Cambio anterior / siguiente |
-| `Tab` / `Shift+Tab` | Pestaña de artefacto siguiente / anterior |
+| `H` / `L` | Pestaña de artefacto anterior / siguiente |
+| `Tab` / `Shift+Tab` | Cambio siguiente / anterior |
 | `1`–`5` | Seleccionar directamente una pestaña de artefacto |
 | `Space` | Alternar tarea bajo el cursor (solo en pestaña de tareas) |
 | `e` | Abrir artefacto en `$EDITOR` |
@@ -134,7 +134,7 @@ Los atajos dependen del contexto: una tecla puede reutilizarse en modos distinto
 | `j` / `k` | Desplazar |
 | `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
 | `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
-| `Tab` / `Shift+Tab` | Pestaña de artefacto siguiente / anterior |
+| `H` / `L` | Pestaña de artefacto anterior / siguiente |
 | `1`–`4` | Seleccionar directamente una pestaña de artefacto |
 | `q` / `Esc` | Volver al índice |
 | `Q` | Salir |
