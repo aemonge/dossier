@@ -141,6 +141,7 @@ type Model struct {
 	errMsg     string
 	loading    bool
 	singlePath bool
+	readOnly   bool
 
 	isGitRepo bool
 	gitRoot   string
@@ -161,7 +162,7 @@ type Model struct {
 	theme         Theme
 }
 
-func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme) Model {
+func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, readOnly bool) Model {
 	m := Model{
 		root:          root,
 		loader:        loader,
@@ -169,6 +170,7 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 		renderCache:   make(map[Tab]string),
 		projectConfig: cfg,
 		theme:         theme,
+		readOnly:      readOnly,
 		isGitRepo:     git.IsInsideWorkTree(root),
 	}
 	if m.isGitRepo {
@@ -200,8 +202,8 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 	return m
 }
 
-func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme) Model {
-	m := New(project, cfg, root, loader, theme)
+func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, readOnly bool) Model {
+	m := New(project, cfg, root, loader, theme, readOnly)
 	m.singlePath = true
 	return m
 }

@@ -54,6 +54,9 @@ func (m *Model) moveCursorUp() {
 }
 
 func (m *Model) doToggle() tea.Cmd {
+	if m.readOnly {
+		return nil
+	}
 	if len(m.tasks.Items) == 0 || m.tasks.Cursor >= len(m.tasks.Items) {
 		return nil
 	}

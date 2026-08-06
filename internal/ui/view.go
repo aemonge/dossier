@@ -185,13 +185,20 @@ func (m *Model) addBorderSides(content string) string {
 	return strings.Join(result, "\n")
 }
 
+func (m *Model) helpText(text string) string {
+	if m.readOnly {
+		return "[read-only]  " + text
+	}
+	return text
+}
+
 func (m *Model) renderHelpBar() string {
 	if m.errMsg != "" {
-		return m.theme.Styles.Error.Render(m.errMsg)
+		return m.theme.Styles.Error.Render(m.helpText(m.errMsg))
 	}
 	if m.mode == ModeIndex {
 		if m.index.FilterActive {
-			return m.theme.Styles.Help.Render("/" + m.index.FilterText + "█")
+			return m.theme.Styles.Help.Render(m.helpText("/" + m.index.FilterText + "█"))
 		}
 		sortHint := "s: sort by suffix"
 		if m.index.SortBySuffix {
@@ -201,19 +208,19 @@ func (m *Model) renderHelpBar() string {
 		if m.index.FilterText != "" {
 			text += "  [/" + m.index.FilterText + "]"
 		}
-		return m.theme.Styles.Help.Render(text)
+		return m.theme.Styles.Help.Render(m.helpText(text))
 	}
 	if m.mode == ModeViewingConfig {
-		return m.theme.Styles.Help.Render("j/k: scroll  i/Esc: back  q: quit")
+		return m.theme.Styles.Help.Render(m.helpText("j/k: scroll  i/Esc: back  q: quit"))
 	}
 	if m.mode == ModeViewingSpec {
 		if m.specViewer.FocusMode {
-			return m.theme.Styles.Help.Render("h/l: req anterior/siguiente  j/k: scroll  Esc: index  q: quit")
+			return m.theme.Styles.Help.Render(m.helpText("h/l: req anterior/siguiente  j/k: scroll  Esc: index  q: quit"))
 		}
-		return m.theme.Styles.Help.Render("j/k: scroll  Esc: index  q: quit")
+		return m.theme.Styles.Help.Render(m.helpText("j/k: scroll  Esc: index  q: quit"))
 	}
 	if m.mode == ModeViewingArchive {
-		return m.theme.Styles.Help.Render("1-4/Tab: artifact  j/k: scroll  a/Esc: index  q: quit")
+		return m.theme.Styles.Help.Render(m.helpText("1-4/Tab: artifact  j/k: scroll  a/Esc: index  q: quit"))
 	}
 	tabRange := "1-4"
 	if m.isGitRepo {
@@ -221,15 +228,27 @@ func (m *Model) renderHelpBar() string {
 	}
 	if m.tab == TabGit {
 		if m.gitState.ErrMsg != "" {
-			return m.theme.Styles.Error.Render(m.gitState.ErrMsg)
+			return m.theme.Styles.Error.Render(m.helpText(m.gitState.ErrMsg))
 		}
 		if m.gitState.ShowingDiff {
-			return m.theme.Styles.Help.Render("d/Esc: back  [/]: prev/next  j/k: vertical  h/l: ←→ horizontal  q: quit")
+			return m.theme.Styles.Help.Render(m.helpText("d/Esc: back  [/]: prev/next  j/k: vertical  h/l: ←→ horizontal  q: quit"))
 		}
-		return m.theme.Styles.Help.Render("h/l: change  " + tabRange + "/Tab: artifact  j/k: navigate  Enter/e: open file  d: view diff  s: stage/unstage  Esc: index  q: quit")
+		text := "h/l: change  " + tabRange + "/Tab: artifact  j/k: navigate  Enter/e: open file  d: view diff"
+		if !m.readOnly {
+			text += "  s: stage/unstage"
+		}
+		return m.theme.Styles.Help.Render(m.helpText(text + "  Esc: index  q: quit"))
 	}
 	if m.tab == TabTasks {
-		return m.theme.Styles.Help.Render("h/l: change  " + tabRange + "/Tab: artifact  j/k: navigate  Space: toggle  e: edit  i: info  Esc: index  q: quit")
+		text := "h/l: change  " + tabRange + "/Tab: artifact  j/k: navigate"
+		if !m.readOnly {
+			text += "  Space: toggle  e: edit"
+		}
+		return m.theme.Styles.Help.Render(m.helpText(text + "  i: info  Esc: index  q: quit"))
 	}
-	return m.theme.Styles.Help.Render("h/l: change  " + tabRange + "/Tab: artifact  j/k: scroll  e: edit  i: info  Esc: index  q: quit")
+	text := "h/l: change  " + tabRange + "/Tab: artifact  j/k: scroll"
+	if !m.readOnly {
+		text += "  e: edit"
+	}
+	return m.theme.Styles.Help.Render(m.helpText(text + "  i: info  Esc: index  q: quit"))
 }

@@ -745,6 +745,42 @@ func TestToggleTask(t *testing.T) {
 		}
 	})
 
+	t.Run("read-only mode does not write or change task state", func(t *testing.T) {
+		dir := t.TempDir()
+		content := "- [ ] do thing"
+		path := filepath.Join(dir, "tasks.md")
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+		ch := openspec.Change{Name: "test", Path: dir, Tasks: openspec.Artifact{Present: true, Content: content}}
+		m := &Model{
+			readOnly: true,
+			loader:   testLoader(),
+			project:  &openspec.Project{Changes: []openspec.Change{ch}},
+			tasks: taskState{
+				Items:  []openspec.TaskItem{{Kind: openspec.KindTask, Text: "do thing", Done: false, LineNum: 0}},
+				Cursor: 0,
+			},
+			width: 80,
+		}
+		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+
+		cmd := m.doToggle()
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != content {
+			t.Errorf("expected tasks.md to remain unchanged, got %q", data)
+		}
+		if m.tasks.Items[0].Done {
+			t.Error("expected in-memory task to remain pending")
+		}
+		if cmd != nil {
+			t.Error("expected nil command in read-only mode")
+		}
+	})
+
 	t.Run("toggle on empty items returns nil", func(t *testing.T) {
 		m := &Model{tasks: taskState{Items: nil, Cursor: 0}}
 		cmd := m.doToggle()
@@ -1597,6 +1633,50 @@ func TestGitSErrorPath(t *testing.T) {
 	}
 }
 
+func TestGitSReadOnlyDoesNotStage(t *testing.T) {
+	skipIfNoGit(t)
+	dir := t.TempDir()
+	gitInit(t, dir)
+	mustGit(t, dir, "commit", "--allow-empty", "-m", "init")
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("v1"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	files, err := git.Status(dir)
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	m := Model{
+		readOnly:  true,
+		mode:      ModeNormal,
+		tab:       TabGit,
+		root:      dir,
+		gitRoot:   dir,
+		isGitRepo: true,
+		gitState:  gitState{Files: files},
+		width:     80,
+		height:    24,
+	}
+	m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	m.vpReady = true
+
+	result, cmd := m.dispatchKey(tea.KeyPressMsg{Text: "s"})
+	updated := result.(Model)
+	if cmd != nil {
+		t.Error("expected no command in read-only mode")
+	}
+	if len(updated.gitState.Files) != 1 || updated.gitState.Files[0].X != '?' || updated.gitState.Files[0].Y != '?' {
+		t.Fatalf("expected displayed status to remain untracked, got %+v", updated.gitState.Files)
+	}
+	refreshed, err := git.Status(dir)
+	if err != nil {
+		t.Fatalf("Status after s: %v", err)
+	}
+	if len(refreshed) != 1 || refreshed[0].X != '?' || refreshed[0].Y != '?' {
+		t.Fatalf("expected Git index to remain unchanged, got %+v", refreshed)
+	}
+}
+
 func TestGitSInactiveInDiffView(t *testing.T) {
 	m := Model{
 		mode: ModeNormal,
@@ -1839,6 +1919,55 @@ func TestSpaceIgnoredInArchiveMode(t *testing.T) {
 	}
 	if updated.mode != ModeViewingArchive {
 		t.Errorf("expected mode to stay ModeViewingArchive, got %d", updated.mode)
+	}
+}
+
+func TestEditorIgnoredInReadOnlyMode(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "proposal.md")
+	if err := os.WriteFile(path, []byte("# Proposal"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	m := Model{
+		readOnly: true,
+		mode:     ModeNormal,
+		tab:      TabProposal,
+		project: &openspec.Project{Changes: []openspec.Change{{
+			Name:     "test",
+			Path:     dir,
+			Proposal: openspec.Artifact{Present: true, Content: "# Proposal"},
+		}}},
+	}
+
+	_, cmd := m.dispatchKey(tea.KeyPressMsg{Text: "e"})
+	if cmd != nil {
+		t.Error("expected no editor command in read-only mode")
+	}
+}
+
+func TestReadOnlyHelpBarOmitsMutationHints(t *testing.T) {
+	tests := []struct {
+		name      string
+		tab       Tab
+		forbidden []string
+	}{
+		{name: "tasks", tab: TabTasks, forbidden: []string{"Space: toggle", "e: edit"}},
+		{name: "git", tab: TabGit, forbidden: []string{"s: stage/unstage"}},
+		{name: "artifact", tab: TabProposal, forbidden: []string{"e: edit"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := Model{readOnly: true, mode: ModeNormal, tab: tt.tab, isGitRepo: true}
+			help := m.renderHelpBar()
+			if !strings.Contains(help, "read-only") {
+				t.Errorf("expected read-only indicator, got %q", help)
+			}
+			for _, hint := range tt.forbidden {
+				if strings.Contains(help, hint) {
+					t.Errorf("expected help to omit %q, got %q", hint, help)
+				}
+			}
+		})
 	}
 }
 

@@ -20,7 +20,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "s":
-		if m.tab != TabGit || m.gitState.ShowingDiff || len(m.gitState.Files) == 0 {
+		if m.readOnly || m.tab != TabGit || m.gitState.ShowingDiff || len(m.gitState.Files) == 0 {
 			return m, nil
 		}
 		f := m.gitState.Files[m.gitState.Cursor]
@@ -255,7 +255,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.toggleGitDiff()
 			return m, nil
 		}
-		if m.mode == ModeViewingArchive {
+		if m.readOnly || m.mode == ModeViewingArchive {
 			return m, nil
 		}
 		if m.tabAvailable(m.tab) {
