@@ -84,6 +84,20 @@ Usa otro archivo con `dossier --config <ruta>`. La ausencia del archivo predeter
 dossier --read-only --theme gruvbox-light-soft --keystyle nvim
 ```
 
+Las mismas bases pueden seleccionarse en TOML y ampliarse con personalizaciones parciales:
+
+```toml
+[theme]
+base = "gruvbox-light-soft"
+
+[keys]
+style = "nvim"
+
+# Opcional: sustituye solo esta acción; el resto de atajos nvim permanece.
+[keys.viewer]
+open = ["e", "o"]
+```
+
 Puedes copiar el ejemplo completo para terminales claras, que documenta todos los colores y acciones de teclado de Dossier, además de los tokens de Glamour/Chroma:
 
 ```bash
@@ -103,9 +117,8 @@ Los atajos dependen del contexto: una tecla puede reutilizarse en modos distinto
 |---|---|
 | `j` / `↓` | Desplazar hacia abajo (o mover cursor de tareas hacia abajo) |
 | `k` / `↑` | Desplazar hacia arriba (o mover cursor de tareas hacia arriba) |
-| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
-| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
-| `H` / `L` | Desplazar horizontalmente a izquierda / derecha |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo (excepto en la pestaña Tareas) |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba (excepto en la pestaña Tareas) |
 | `h` / `l` | Pestaña de artefacto anterior / siguiente |
 | `Tab` / `Shift+Tab` | Cambio siguiente / anterior |
 | `1`–`5` | Seleccionar directamente una pestaña de artefacto |
@@ -124,16 +137,34 @@ Los atajos dependen del contexto: una tecla puede reutilizarse en modos distinto
 | `l` / `Enter` | Abrir el cambio, spec o cambio archivado seleccionado |
 | `Space` | Expandir / contraer una spec de proyecto |
 | `/` | Filtrar elementos del índice |
+| `s` | Alternar el orden del índice |
 | `?` | Abrir información de configuración |
 | `q` / `Q` / `Esc` | Salir desde el índice raíz |
+
+Al editar un filtro del índice, el texto normal actualiza el filtro, `Backspace` borra, `Enter` acepta y `Esc` cancela.
+
+#### Pestaña Git y visor de diferencias
+
+| Tecla | Acción |
+|---|---|
+| `j` / `k` | Seleccionar un archivo cambiado o desplazar verticalmente una diferencia abierta |
+| `d` / `Enter` / `e` | Abrir o cerrar la diferencia seleccionada |
+| `[` / `]` | Archivo cambiado anterior / siguiente al ver una diferencia |
+| `H` / `L` | Desplazar horizontalmente una diferencia abierta |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo en la diferencia |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba en la diferencia |
+| `s` | Preparar / quitar del índice el archivo seleccionado (desactivado en modo de solo lectura) |
+| `Tab` / `Shift+Tab` | Cambio siguiente / anterior |
+| `q` / `Esc` | Cerrar la diferencia o volver al índice |
+| `Q` | Salir |
 
 #### Modo archivo (viendo un cambio archivado)
 
 | Tecla | Acción |
 |---|---|
 | `j` / `k` | Desplazar |
-| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
-| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo (excepto en la pestaña Tareas) |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba (excepto en la pestaña Tareas) |
 | `h` / `l` | Pestaña de artefacto anterior / siguiente |
 | `1`–`4` | Seleccionar directamente una pestaña de artefacto |
 | `q` / `Esc` | Volver al índice |
@@ -159,6 +190,15 @@ En modo foco de requisitos:
 | `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
 | `q` / `Esc` | Volver al índice |
 | `Q` | Salir |
+
+#### Visor de configuración
+
+| Tecla | Acción |
+|---|---|
+| `j` / `k` | Desplazar |
+| `PgDown` / `Ctrl+D` | Desplazar una página hacia abajo |
+| `PgUp` / `Ctrl+U` | Desplazar una página hacia arriba |
+| `q` / `?` / `Esc` | Volver a la vista anterior |
 
 ---
 

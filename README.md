@@ -84,6 +84,20 @@ Use another file with `dossier --config <path>`. A missing default file is ignor
 dossier --read-only --theme gruvbox-light-soft --keystyle nvim
 ```
 
+The same bases can be selected in TOML and extended with sparse overrides:
+
+```toml
+[theme]
+base = "gruvbox-light-soft"
+
+[keys]
+style = "nvim"
+
+# Optional: replace only this action; all other nvim bindings remain.
+[keys.viewer]
+open = ["e", "o"]
+```
+
 Copy the complete light-terminal example, which documents every Dossier color and key action plus Glamour/Chroma token overrides:
 
 ```bash
@@ -103,9 +117,8 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 |---|---|
 | `j` / `down` | Scroll down (or move task cursor down) |
 | `k` / `up` | Scroll up (or move task cursor up) |
-| `PgDown` / `Ctrl+D` | Scroll one page down |
-| `PgUp` / `Ctrl+U` | Scroll one page up |
-| `H` / `L` | Scroll horizontally left / right |
+| `PgDown` / `Ctrl+D` | Scroll one page down (except the Tasks tab) |
+| `PgUp` / `Ctrl+U` | Scroll one page up (except the Tasks tab) |
 | `h` / `l` | Previous / next artifact tab |
 | `Tab` / `Shift+Tab` | Next / previous change |
 | `1`–`5` | Select an artifact tab directly |
@@ -124,16 +137,34 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 | `l` / `Enter` | Open selected change, spec, or archived change |
 | `Space` | Expand / collapse a project spec |
 | `/` | Filter index items |
+| `s` | Toggle index sorting |
 | `?` | Open configuration information |
 | `q` / `Q` / `Esc` | Quit from the root index |
+
+While editing an index filter, normal text updates the filter, `Backspace` deletes, `Enter` accepts, and `Esc` cancels.
+
+#### Git tab and diff viewer
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Select a changed file, or scroll an open diff vertically |
+| `d` / `Enter` / `e` | Open or close the selected diff |
+| `[` / `]` | Previous / next changed file while viewing a diff |
+| `H` / `L` | Scroll an open diff horizontally left / right |
+| `PgDown` / `Ctrl+D` | Scroll an open diff one page down |
+| `PgUp` / `Ctrl+U` | Scroll an open diff one page up |
+| `s` | Stage / unstage the selected file (disabled in read-only mode) |
+| `Tab` / `Shift+Tab` | Next / previous change |
+| `q` / `Esc` | Close the diff, or return to the index |
+| `Q` | Quit |
 
 #### Archive mode (viewing an archived change)
 
 | Key | Action |
 |---|---|
 | `j` / `k` | Scroll |
-| `PgDown` / `Ctrl+D` | Scroll one page down |
-| `PgUp` / `Ctrl+U` | Scroll one page up |
+| `PgDown` / `Ctrl+D` | Scroll one page down (except the Tasks tab) |
+| `PgUp` / `Ctrl+U` | Scroll one page up (except the Tasks tab) |
 | `h` / `l` | Previous / next artifact tab |
 | `1`–`4` | Select an artifact tab directly |
 | `q` / `Esc` | Return to index |
@@ -159,6 +190,15 @@ In requirement focus mode:
 | `PgUp` / `Ctrl+U` | Scroll one page up |
 | `q` / `Esc` | Return to index |
 | `Q` | Quit |
+
+#### Configuration viewer
+
+| Key | Action |
+|---|---|
+| `j` / `k` | Scroll |
+| `PgDown` / `Ctrl+D` | Scroll one page down |
+| `PgUp` / `Ctrl+U` | Scroll one page up |
+| `q` / `?` / `Esc` | Return to the previous view |
 
 ---
 
