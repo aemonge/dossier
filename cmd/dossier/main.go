@@ -15,12 +15,14 @@ import (
 var version string
 
 type cliOptions struct {
-	themeName   string
-	themeSet    bool
-	configPath  string
-	showVersion bool
-	showHelp    bool
-	readOnly    bool
+	themeName    string
+	themeSet     bool
+	keyStyleName string
+	keyStyleSet  bool
+	configPath   string
+	showVersion  bool
+	showHelp     bool
+	readOnly     bool
 }
 
 func parseOptions(args []string, output io.Writer) (cliOptions, []string, error) {
@@ -30,6 +32,7 @@ func parseOptions(args []string, output io.Writer) (cliOptions, []string, error)
 	flags := flag.NewFlagSet("dossier", flag.ContinueOnError)
 	flags.SetOutput(output)
 	flags.StringVar(&opts.configPath, "config", "", "Configuration file (default: XDG config path)")
+	flags.StringVar(&opts.keyStyleName, "keystyle", "nvim", "Base key style (nvim)")
 	flags.StringVar(&opts.themeName, "theme", "none", "Base theme (dark, none, light, dracula, gruvbox-light-soft)")
 	flags.BoolVar(&opts.showVersion, "version", false, "Print version and exit")
 	flags.BoolVar(&opts.showHelp, "help", false, "Print help and exit")
@@ -42,7 +45,10 @@ func parseOptions(args []string, output io.Writer) (cliOptions, []string, error)
 	}
 	opts.showHelp = opts.showHelp || shortHelp
 	flags.Visit(func(f *flag.Flag) {
-		if f.Name == "theme" {
+		switch f.Name {
+		case "keystyle":
+			opts.keyStyleSet = true
+		case "theme":
 			opts.themeSet = true
 		}
 	})
@@ -57,6 +63,7 @@ A keyboard-driven TUI for navigating OpenSpec project artifacts.
 Options:
   -h, --help          Print help and exit
       --config <path> Configuration file (default: XDG config path)
+      --keystyle <name> Base key style: nvim (default: nvim)
       --read-only     Disable task toggles, editor launch, and Git stage/unstage
       --theme <name>  Base theme: dark, none, light, dracula, or gruvbox-light-soft (default: none)
       --version       Print version and exit
@@ -85,7 +92,11 @@ func main() {
 		os.Exit(0)
 	}
 
-	appConfig, _, err := settings.Load(opts.configPath)
+	selectedKeyStyle := ""
+	if opts.keyStyleSet {
+		selectedKeyStyle = opts.keyStyleName
+	}
+	appConfig, _, err := settings.LoadWithKeyStyle(opts.configPath, selectedKeyStyle)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)

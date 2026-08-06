@@ -4,6 +4,7 @@
 - [x] 1.2 Add failing tests for sparse TOML overrides, unknown actions, invalid keys, and context-local collisions
 - [x] 1.3 Implement typed default keymaps, merging, matching, and validation
 - [x] 1.4 Replace legacy bindings with the approved Neovim-oriented defaults
+- [x] 1.5 Add named key-style base selection through TOML and `--keystyle`
 
 ## 2. Handler integration
 

@@ -101,6 +101,59 @@ down = ["n"]
 	}
 }
 
+func TestLoadNamedKeyStyleWithSparseOverrides(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := `
+[keys]
+style = "nvim"
+
+[keys.viewer]
+down = ["n"]
+`
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !reflect.DeepEqual(cfg.Keys.Viewer.Down, []string{"n"}) {
+		t.Fatalf("viewer.down = %v", cfg.Keys.Viewer.Down)
+	}
+	if !reflect.DeepEqual(cfg.Keys.Viewer.Quit, []string{"Q"}) {
+		t.Fatalf("viewer.quit should inherit nvim base: %v", cfg.Keys.Viewer.Quit)
+	}
+}
+
+func TestLoadWithKeyStyleOverridesConfiguredBase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	data := "[keys]\nstyle = \"unknown-in-config\"\n[keys.viewer]\ndown = [\"n\"]\n"
+	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, _, err := LoadWithKeyStyle(path, "NVIM")
+	if err != nil {
+		t.Fatalf("LoadWithKeyStyle: %v", err)
+	}
+	if cfg.Keys.Style != "nvim" || !reflect.DeepEqual(cfg.Keys.Viewer.Down, []string{"n"}) {
+		t.Fatalf("CLI base did not preserve config overrides: %+v", cfg.Keys)
+	}
+}
+
+func TestLoadRejectsUnknownKeyStyle(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[keys]\nstyle = \"wat\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, _, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), `unknown keystyle "wat"`) {
+		t.Fatalf("expected unknown keystyle error, got %v", err)
+	}
+}
+
 func TestLoadRejectsUnknownKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(path, []byte("[theme.ui]\nprimry_fg = \"#fff\"\n"), 0o644); err != nil {
@@ -181,6 +234,9 @@ func TestDefaultKeysUseNeovimProfile(t *testing.T) {
 	root := reflect.ValueOf(keys)
 	for i := range root.NumField() {
 		context := root.Field(i)
+		if context.Kind() != reflect.Struct {
+			continue
+		}
 		contextType := context.Type()
 		for j := range context.NumField() {
 			for _, key := range context.Field(j).Interface().([]string) {
@@ -198,6 +254,9 @@ func TestDefaultKeysBindEveryAction(t *testing.T) {
 	typeOfRoot := root.Type()
 	for i := range root.NumField() {
 		context := root.Field(i)
+		if context.Kind() != reflect.Struct {
+			continue
+		}
 		contextType := context.Type()
 		for j := range context.NumField() {
 			bindings := context.Field(j).Interface().([]string)

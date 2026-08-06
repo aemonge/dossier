@@ -78,10 +78,10 @@ Dossier loads optional TOML configuration from the XDG path:
 ${XDG_CONFIG_HOME:-~/.config}/dossier/config.toml
 ```
 
-Use another file with `dossier --config <path>`. A missing default file is ignored; a missing explicit file or invalid setting produces a startup error. `--theme` overrides the configured base theme while preserving custom color overrides. Built-in themes are `none`, `dark`, `light`, `dracula`, and `gruvbox-light-soft`:
+Use another file with `dossier --config <path>`. A missing default file is ignored; a missing explicit file or invalid setting produces a startup error. `--theme` and `--keystyle` select built-in bases while preserving sparse configuration overrides. Built-in themes are `none`, `dark`, `light`, `dracula`, and `gruvbox-light-soft`; the default key style is `nvim`:
 
 ```bash
-dossier --theme gruvbox-light-soft
+dossier --read-only --theme gruvbox-light-soft --keystyle nvim
 ```
 
 Copy the complete light-terminal example, which documents every Dossier color and key action plus Glamour/Chroma token overrides:

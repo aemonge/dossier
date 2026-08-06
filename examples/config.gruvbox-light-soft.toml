@@ -180,6 +180,9 @@ GenericInserted = "#79740e"
 
 # Neovim-oriented navigation. PgUp/PgDown remain the primary page labels;
 # Ctrl+U/Ctrl+D are familiar aliases.
+[keys]
+style = "nvim"
+
 [keys.viewer]
 quit = ["Q"]
 info = ["?"]

@@ -60,6 +60,7 @@ type ChromaConfig struct {
 }
 
 type KeyConfig struct {
+	Style  string        `toml:"style"`
 	Viewer KeyViewer     `toml:"viewer"`
 	Index  KeyIndex      `toml:"index"`
 	Filter KeyFilter     `toml:"filter"`
@@ -139,6 +140,14 @@ func DefaultPath() (string, error) {
 }
 
 func Load(path string) (Config, string, error) {
+	return load(path, "")
+}
+
+func LoadWithKeyStyle(path, keyStyle string) (Config, string, error) {
+	return load(path, keyStyle)
+}
+
+func load(path, selectedKeyStyle string) (Config, string, error) {
 	explicit := path != ""
 	if path == "" {
 		var err error
@@ -148,7 +157,15 @@ func Load(path string) (Config, string, error) {
 		}
 	}
 
-	cfg := Config{Theme: ThemeConfig{Base: "none"}, Keys: DefaultKeys()}
+	keyStyle := selectedKeyStyle
+	if keyStyle == "" {
+		keyStyle = "nvim"
+	}
+	baseKeys, err := BuiltinKeyStyle(keyStyle)
+	if err != nil {
+		return Config{}, path, fmt.Errorf("config %s: %w", path, err)
+	}
+	cfg := Config{Theme: ThemeConfig{Base: "none"}, Keys: baseKeys}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) && !explicit {
@@ -173,7 +190,15 @@ func Load(path string) (Config, string, error) {
 		fileCfg.Theme.Base = "none"
 	}
 	cfg.Theme = fileCfg.Theme
-	cfg.Keys = MergeKeys(cfg.Keys, fileCfg.Keys)
+	if selectedKeyStyle == "" && fileCfg.Keys.Style != "" {
+		keyStyle = fileCfg.Keys.Style
+		baseKeys, err = BuiltinKeyStyle(keyStyle)
+		if err != nil {
+			return Config{}, path, fmt.Errorf("config %s: %w", path, err)
+		}
+	}
+	cfg.Keys = MergeKeys(baseKeys, fileCfg.Keys)
+	cfg.Keys.Style = strings.ToLower(keyStyle)
 	if err := ValidateKeys(cfg.Keys); err != nil {
 		return Config{}, path, fmt.Errorf("config %s: %w", path, err)
 	}
@@ -249,8 +274,21 @@ func mergeStringMap(base, override map[string]string) map[string]string {
 	return merged
 }
 
+func BuiltinKeyStyle(name string) (KeyConfig, error) {
+	name = strings.ToLower(name)
+	if name != "nvim" {
+		return KeyConfig{}, fmt.Errorf("unknown keystyle %q; available: nvim", name)
+	}
+	return nvimKeys(), nil
+}
+
 func DefaultKeys() KeyConfig {
+	return nvimKeys()
+}
+
+func nvimKeys() KeyConfig {
 	return KeyConfig{
+		Style: "nvim",
 		Viewer: KeyViewer{
 			Quit: []string{"Q"}, Stage: []string{"s"}, Info: []string{"?"}, Back: []string{"q", "esc"},
 			Previous: []string{"H"}, Next: []string{"L"}, Right: []string{"l", "right"}, Left: []string{"h", "left"},
@@ -285,10 +323,17 @@ func MergeKeys(base, override KeyConfig) KeyConfig {
 func mergeKeyValues(dst, src reflect.Value) {
 	for i := range dst.NumField() {
 		df, sf := dst.Field(i), src.Field(i)
-		if df.Kind() == reflect.Struct {
+		switch df.Kind() {
+		case reflect.String:
+			if sf.String() != "" {
+				df.SetString(sf.String())
+			}
+		case reflect.Struct:
 			mergeKeyValues(df, sf)
-		} else if !sf.IsNil() {
-			df.Set(sf)
+		case reflect.Slice:
+			if !sf.IsNil() {
+				df.Set(sf)
+			}
 		}
 	}
 }
@@ -297,8 +342,11 @@ func ValidateKeys(keys KeyConfig) error {
 	root := reflect.ValueOf(keys)
 	typeOfRoot := root.Type()
 	for i := range root.NumField() {
-		contextName := typeOfRoot.Field(i).Tag.Get("toml")
 		context := root.Field(i)
+		if context.Kind() != reflect.Struct {
+			continue
+		}
+		contextName := typeOfRoot.Field(i).Tag.Get("toml")
 		contextType := context.Type()
 		seen := map[string]string{}
 		for j := range context.NumField() {

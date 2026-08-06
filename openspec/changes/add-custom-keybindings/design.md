@@ -10,7 +10,7 @@ Define typed bindings for viewer, index, filter editor, spec viewer, and config 
 
 ### D2: Base plus sparse overrides
 
-Default bindings use a coherent Neovim-oriented profile: `q` backs out, `Q` quits, `H`/`L` switch changes, `h`/`l` move horizontally, and `Tab`/`Shift+Tab` switch artifacts. Page keys remain primary while `Ctrl+U`/`Ctrl+D` are aliases. TOML replaces only actions it names, allowing small personal keymap files.
+Named key styles provide a base, with `nvim` as the default. `--keystyle` overrides the configured base name while sparse `[keys.*]` action overrides still apply, mirroring `--theme` precedence. The Neovim profile uses `q` to back out, `Q` to quit, `H`/`L` to switch changes, `h`/`l` to move horizontally, and `Tab`/`Shift+Tab` to switch artifacts. Page keys remain primary while `Ctrl+U`/`Ctrl+D` are aliases.
 
 ### D3: Context-local collision validation
 

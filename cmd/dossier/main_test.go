@@ -31,6 +31,17 @@ func TestParseOptionsConfigPath(t *testing.T) {
 	}
 }
 
+func TestParseOptionsTracksExplicitKeyStyle(t *testing.T) {
+	var output bytes.Buffer
+	opts, _, err := parseOptions([]string{"--keystyle", "nvim"}, &output)
+	if err != nil {
+		t.Fatalf("parseOptions: %v", err)
+	}
+	if !opts.keyStyleSet || opts.keyStyleName != "nvim" {
+		t.Fatalf("expected explicit nvim keystyle, got %+v", opts)
+	}
+}
+
 func TestParseOptionsTracksExplicitTheme(t *testing.T) {
 	var output bytes.Buffer
 	opts, _, err := parseOptions([]string{"--theme", "light"}, &output)
@@ -62,7 +73,7 @@ func TestUsageUsesConventionalFlagSpelling(t *testing.T) {
 	writeUsage(&output)
 	usage := output.String()
 
-	for _, want := range []string{"-h, --help", "--config <path>", "--read-only", "--theme <name>", "gruvbox-light-soft", "--version"} {
+	for _, want := range []string{"-h, --help", "--config <path>", "--keystyle <name>", "--read-only", "--theme <name>", "gruvbox-light-soft", "--version"} {
 		if !strings.Contains(usage, want) {
 			t.Errorf("expected usage to contain %q, got:\n%s", want, usage)
 		}

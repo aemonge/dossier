@@ -78,10 +78,10 @@ Dossier carga configuración TOML opcional desde la ruta XDG:
 ${XDG_CONFIG_HOME:-~/.config}/dossier/config.toml
 ```
 
-Usa otro archivo con `dossier --config <ruta>`. La ausencia del archivo predeterminado se ignora; un archivo explícito ausente o una opción inválida produce un error al iniciar. `--theme` sustituye el tema base configurado conservando los colores personalizados. Los temas incluidos son `none`, `dark`, `light`, `dracula` y `gruvbox-light-soft`:
+Usa otro archivo con `dossier --config <ruta>`. La ausencia del archivo predeterminado se ignora; un archivo explícito ausente o una opción inválida produce un error al iniciar. `--theme` y `--keystyle` seleccionan bases incluidas conservando las personalizaciones parciales del archivo. Los temas incluidos son `none`, `dark`, `light`, `dracula` y `gruvbox-light-soft`; el estilo de teclas predeterminado es `nvim`:
 
 ```bash
-dossier --theme gruvbox-light-soft
+dossier --read-only --theme gruvbox-light-soft --keystyle nvim
 ```
 
 Puedes copiar el ejemplo completo para terminales claras, que documenta todos los colores y acciones de teclado de Dossier, además de los tokens de Glamour/Chroma:

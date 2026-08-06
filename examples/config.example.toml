@@ -212,8 +212,12 @@ Punctuation = "#24292f"
 GenericDeleted = "#82071e"
 GenericInserted = "#116329"
 
-# Key lists replace the defaults only for the named action. Keys use Bubble Tea
-# names such as ctrl+d, shift+tab, pgdown, space, enter, esc, or one character.
+# Select a built-in key base, then replace defaults only for named actions.
+[keys]
+style = "nvim"
+
+# Keys use Bubble Tea names such as ctrl+d, shift+tab, pgdown, space, enter,
+# esc, or one character.
 [keys.viewer]
 quit = ["Q"]
 stage = ["s"]

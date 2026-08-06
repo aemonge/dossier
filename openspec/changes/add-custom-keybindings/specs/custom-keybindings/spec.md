@@ -12,6 +12,18 @@ The system SHALL provide a modifier-light Neovim-oriented default keymap in whic
 - **WHEN** the user presses `PgDown` or `Ctrl+D` in a scrollable viewer
 - **THEN** Dossier scrolls down one page
 
+### Requirement: Named key-style base selection
+
+The system SHALL provide `nvim` as the default named key style, selectable through `[keys].style` or `--keystyle`. An explicit CLI selection SHALL replace the configured base name while preserving sparse configured action overrides.
+
+#### Scenario: Explicit nvim key style
+- **WHEN** Dossier starts with `--keystyle nvim` and the configuration overrides one viewer action
+- **THEN** the action override is applied on top of the built-in nvim key style
+
+#### Scenario: Unknown key style
+- **WHEN** configuration or CLI selects an unknown key style
+- **THEN** startup fails with the unknown name and available styles
+
 ### Requirement: Context-specific custom keybindings
 
 The system SHALL load ordered key lists for every keyboard action from the XDG TOML configuration. Unspecified actions SHALL retain existing default bindings.
