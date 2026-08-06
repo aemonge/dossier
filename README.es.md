@@ -19,6 +19,7 @@ Interfaz de terminal controlada por teclado para leer y navegar artefactos de pr
 - Alterna casillas de verificación (`- [ ]` / `- [x]`) en el propio archivo `tasks.md`
 - Recarga en vivo ante cambios en disco (sondeo cada 500 ms)
 - Abre cualquier artefacto en `$EDITOR`
+- Ofrece el modo `--read-only` para revisar sin modificar tareas, archivos mediante el editor ni el índice de Git
 - Acepta una ruta como argumento para ver un cambio concreto sin necesitar un proyecto completo
 
 ---
@@ -57,6 +58,15 @@ Ver un directorio de cambio concreto por ruta:
 ```bash
 dossier /ruta/a/openspec/changes/mi-cambio
 ```
+
+Revisar sin permitir que dossier alterne tareas, abra un editor o prepare/quite archivos del índice de Git:
+
+```bash
+dossier --read-only
+dossier --read-only /ruta/a/openspec/changes/mi-cambio
+```
+
+Usa `dossier -h` o `dossier --help` para ver todas las opciones. El modo de solo lectura permanece visible en la barra de ayuda; la navegación, recarga en vivo, estado de Git y vista de diferencias siguen disponibles.
 
 ### Referencia de teclado
 

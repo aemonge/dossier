@@ -17,7 +17,7 @@ make clean              # Remove binary
 ## Project Structure
 
 ```
-cmd/dossier/main.go         # Entry point: flags (--version, --help, path arg), tea.NewProgram
+cmd/dossier/main.go         # Entry point: flags (-h/--help, --read-only, --version, path arg), tea.NewProgram
 internal/
   openspec/                 # Domain types + filesystem logic
     fs.go                   # fileSystem interface + OSFS implementation
@@ -86,6 +86,7 @@ openspec/                   # OpenSpec project artifacts (not Go code)
 24. **Editor** defaults to `vi` if `$EDITOR` is unset. Launch async via `tea.ExecProcess`. Git tab uses `m.gitRoot` for absolute paths.
 25. **`renderWidth()` minimum is 80**: when `m.width-2 < 20`, glamour renders at 80 columns.
 26. **Specs structure**: inside a change, `specs/<name>/spec.md`. Project-level: `openspec/specs/<name>/spec.md`.
+27. **Read-only is explicit launch state**: `--read-only` is passed into `ui.New`/`NewSinglePath` and blocks all three dossier-initiated mutation paths: `doToggle`, external editor launch, and Git stage/unstage. Git status/diff and navigation remain active; disabled mutation hints are omitted from the help bar.
 
 ## Testing Patterns
 

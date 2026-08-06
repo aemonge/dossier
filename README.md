@@ -19,6 +19,7 @@ A keyboard-driven terminal UI for reading and navigating [OpenSpec](https://gith
 - Toggles task checkboxes (`- [ ]` / `- [x]`) in-place, writing directly to `tasks.md`
 - Live-reloads on disk changes (500 ms polling)
 - Opens any artifact in `$EDITOR`
+- Offers `--read-only` mode for safe review without task, editor, or Git index mutations
 - Accepts a path argument to view a single change directory without a full project
 
 ---
@@ -57,6 +58,15 @@ View a single change directory by path:
 ```bash
 dossier /path/to/openspec/changes/my-change
 ```
+
+Review without allowing dossier to toggle tasks, launch an editor, or stage/unstage Git files:
+
+```bash
+dossier --read-only
+dossier --read-only /path/to/openspec/changes/my-change
+```
+
+Use `dossier -h` or `dossier --help` for all command-line options. Read-only mode remains visible in the help bar; navigation, live reload, Git status, and diff viewing stay available.
 
 ### Keyboard reference
 
