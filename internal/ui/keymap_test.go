@@ -1,0 +1,100 @@
+package ui
+
+import (
+	"strings"
+	"testing"
+
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"github.com/fselich/dossier/internal/openspec"
+	"github.com/fselich/dossier/internal/settings"
+)
+
+func TestCustomViewerNavigationReplacesDefaultBinding(t *testing.T) {
+	keys := settings.DefaultKeys()
+	keys.Viewer.Down = []string{"n"}
+	m := Model{
+		mode:   ModeNormal,
+		tab:    TabTasks,
+		keyMap: keys,
+		project: &openspec.Project{Changes: []openspec.Change{{
+			Tasks: openspec.Artifact{Present: true},
+		}}},
+		tasks: taskState{
+			Items: []openspec.TaskItem{
+				{Kind: openspec.KindTask, Text: "one"},
+				{Kind: openspec.KindTask, Text: "two"},
+			},
+		},
+	}
+	m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	m.vpReady = true
+
+	result, _ := m.dispatchKey(tea.KeyPressMsg{Text: "n"})
+	m = result.(Model)
+	if m.tasks.Cursor != 1 {
+		t.Fatalf("custom down key did not move cursor: %d", m.tasks.Cursor)
+	}
+
+	m.tasks.Cursor = 0
+	result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "j"})
+	m = result.(Model)
+	if m.tasks.Cursor != 0 {
+		t.Fatalf("replaced default down key should be inactive: %d", m.tasks.Cursor)
+	}
+}
+
+func TestCustomKeymapUpdatesHelp(t *testing.T) {
+	keys := settings.DefaultKeys()
+	keys.Viewer.ToggleTask = []string{"x"}
+	keys.Viewer.Open = []string{"o"}
+	m := Model{mode: ModeNormal, tab: TabTasks, keyMap: keys}
+
+	help := m.renderHelpBar()
+	if !strings.Contains(help, "x: toggle") || !strings.Contains(help, "o: edit") {
+		t.Fatalf("custom help labels missing: %q", help)
+	}
+	if strings.Contains(help, "Space: toggle") || strings.Contains(help, "e: edit") {
+		t.Fatalf("default help labels should be replaced: %q", help)
+	}
+}
+
+func TestReadOnlyCustomHelpOmitsMutationBindings(t *testing.T) {
+	keys := settings.DefaultKeys()
+	keys.Viewer.ToggleTask = []string{"x"}
+	keys.Viewer.Open = []string{"o"}
+	m := Model{mode: ModeNormal, tab: TabTasks, keyMap: keys, readOnly: true}
+
+	help := m.renderHelpBar()
+	if strings.Contains(help, "x: toggle") || strings.Contains(help, "o: edit") {
+		t.Fatalf("read-only help should omit mutation actions: %q", help)
+	}
+}
+
+func TestFilterUsesCustomEditingBindings(t *testing.T) {
+	keys := settings.DefaultKeys()
+	keys.Filter.Accept = []string{"ctrl+j"}
+	m := Model{
+		mode:   ModeIndex,
+		keyMap: keys,
+		index: indexState{
+			FilterActive:  true,
+			FilterText:    "abc",
+			ExpandedSpecs: make(map[int]bool),
+		},
+	}
+	m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
+	m.vpReady = true
+
+	result, _ := m.dispatchKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = result.(Model)
+	if !m.index.FilterActive {
+		t.Fatal("replaced default Enter binding should not accept filter")
+	}
+
+	result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "ctrl+j"})
+	m = result.(Model)
+	if m.index.FilterActive {
+		t.Fatal("custom ctrl+j binding should accept filter")
+	}
+}

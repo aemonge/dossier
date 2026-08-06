@@ -3,12 +3,13 @@ package ui
 import tea "charm.land/bubbletea/v2"
 
 func (m Model) updateSpec(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
+	keys := m.effectiveKeyMap().Spec
+	switch {
 
-	case "q", "ctrl+c":
+	case matchesKey(msg, keys.Quit):
 		return m, tea.Quit
 
-	case "esc":
+	case matchesKey(msg, keys.Back):
 		specIdx := m.specViewer.Cursor
 		jumpTarget := m.specViewer.JumpTarget
 		wasFocusMode := m.specViewer.FocusMode
@@ -34,19 +35,19 @@ func (m Model) updateSpec(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.refreshIndexViewport()
 
-	case "j", "down":
+	case matchesKey(msg, keys.Down):
 		m.vp.ScrollDown(1)
 
-	case "k", "up":
+	case matchesKey(msg, keys.Up):
 		m.vp.ScrollUp(1)
 
-	case "pgdown":
+	case matchesKey(msg, keys.PageDown):
 		m.vp.PageDown()
 
-	case "pgup":
+	case matchesKey(msg, keys.PageUp):
 		m.vp.PageUp()
 
-	case "h":
+	case matchesKey(msg, keys.PreviousRequirement):
 		if m.specViewer.FocusMode {
 			ps := m.projectSpecs[m.specViewer.Cursor]
 			if len(ps.RequirementNames) > 0 {
@@ -56,7 +57,7 @@ func (m Model) updateSpec(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case "l":
+	case matchesKey(msg, keys.NextRequirement):
 		if m.specViewer.FocusMode {
 			ps := m.projectSpecs[m.specViewer.Cursor]
 			if len(ps.RequirementNames) > 0 {

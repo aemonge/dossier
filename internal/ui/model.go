@@ -10,6 +10,7 @@ import (
 	"charm.land/glamour/v2"
 	"github.com/fselich/dossier/internal/git"
 	"github.com/fselich/dossier/internal/openspec"
+	"github.com/fselich/dossier/internal/settings"
 )
 
 type Mode int
@@ -160,9 +161,10 @@ type Model struct {
 	specViewer    specViewerState
 	projectConfig openspec.ProjectConfig
 	theme         Theme
+	keyMap        settings.KeyConfig
 }
 
-func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, readOnly bool) Model {
+func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
 	m := Model{
 		root:          root,
 		loader:        loader,
@@ -170,6 +172,7 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 		renderCache:   make(map[Tab]string),
 		projectConfig: cfg,
 		theme:         theme,
+		keyMap:        keyMap,
 		readOnly:      readOnly,
 		isGitRepo:     git.IsInsideWorkTree(root),
 	}
@@ -202,8 +205,8 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 	return m
 }
 
-func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, readOnly bool) Model {
-	m := New(project, cfg, root, loader, theme, readOnly)
+func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
+	m := New(project, cfg, root, loader, theme, keyMap, readOnly)
 	m.singlePath = true
 	return m
 }

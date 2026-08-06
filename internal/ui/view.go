@@ -41,10 +41,12 @@ func (m *Model) viewContentWithChrome() string {
 }
 
 func (m *Model) emptyViewContent() string {
+	keys := m.effectiveKeyMap().Viewer
+	hint := combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit"
 	return m.boxTop() + "\n" +
 		m.addBorderSides(m.theme.Styles.Header.Render(m.project.Name)+
 			"\n\n\n  No active changes. Create one with /opsx:propose\n"+
-			m.theme.Styles.Help.Render("\n  a/Esc: index  q: quit")) + "\n" +
+			m.theme.Styles.Help.Render("\n  "+hint)) + "\n" +
 		m.boxInnerSep() + "\n" +
 		m.addBorderSides(m.renderHelpBar()) + "\n" +
 		m.boxBottom()
@@ -196,59 +198,83 @@ func (m *Model) renderHelpBar() string {
 	if m.errMsg != "" {
 		return m.theme.Styles.Error.Render(m.helpText(m.errMsg))
 	}
+	keyMap := m.effectiveKeyMap()
 	if m.mode == ModeIndex {
 		if m.index.FilterActive {
-			return m.theme.Styles.Help.Render(m.helpText("/" + m.index.FilterText + "█"))
+			return m.theme.Styles.Help.Render(m.helpText(primaryKeyLabel(keyMap.Index.Filter) + m.index.FilterText + "█"))
 		}
-		sortHint := "s: sort by suffix"
+		sortAction := "sort by suffix"
 		if m.index.SortBySuffix {
-			sortHint = "s: sort by name"
+			sortAction = "sort by name"
 		}
-		text := "j/k: navigate  Enter: open  Space: toggle  click: select  " + sortHint + "  i: info  Esc: quit"
+		text := pairedKeyLabel(keyMap.Index.Down, keyMap.Index.Up) + ": navigate  " +
+			primaryKeyLabel(keyMap.Index.Open) + ": open  " + primaryKeyLabel(keyMap.Index.Toggle) + ": toggle  click: select  " +
+			primaryKeyLabel(keyMap.Index.Sort) + ": " + sortAction + "  " + primaryKeyLabel(keyMap.Index.Info) + ": info  " +
+			primaryKeyLabel(keyMap.Index.Back) + ": quit"
 		if m.index.FilterText != "" {
-			text += "  [/" + m.index.FilterText + "]"
+			text += "  [" + primaryKeyLabel(keyMap.Index.Filter) + m.index.FilterText + "]"
 		}
 		return m.theme.Styles.Help.Render(m.helpText(text))
 	}
 	if m.mode == ModeViewingConfig {
-		return m.theme.Styles.Help.Render(m.helpText("j/k: scroll  i/Esc: back  q: quit"))
+		keys := keyMap.Config
+		return m.theme.Styles.Help.Render(m.helpText(
+			pairedKeyLabel(keys.Down, keys.Up) + ": scroll  " + combinedKeyLabel(keys.Back) + ": back",
+		))
 	}
 	if m.mode == ModeViewingSpec {
+		keys := keyMap.Spec
+		text := ""
 		if m.specViewer.FocusMode {
-			return m.theme.Styles.Help.Render(m.helpText("h/l: req anterior/siguiente  j/k: scroll  Esc: index  q: quit"))
+			text = pairedKeyLabel(keys.PreviousRequirement, keys.NextRequirement) + ": previous/next requirement  "
 		}
-		return m.theme.Styles.Help.Render(m.helpText("j/k: scroll  Esc: index  q: quit"))
+		text += pairedKeyLabel(keys.Down, keys.Up) + ": scroll  " + primaryKeyLabel(keys.Back) + ": index  " +
+			combinedKeyLabel(keys.Quit) + ": quit"
+		return m.theme.Styles.Help.Render(m.helpText(text))
 	}
+	keys := keyMap.Viewer
+	tabKeys := combinedKeyLabel(keys.ProposalTab, keys.DesignTab, keys.SpecsTab, keys.TasksTab)
+	if m.isGitRepo && m.mode == ModeNormal {
+		tabKeys = combinedKeyLabel(keys.ProposalTab, keys.DesignTab, keys.SpecsTab, keys.TasksTab, keys.GitTab)
+	}
+	tabKeys += "/" + primaryKeyLabel(keys.NextTab)
 	if m.mode == ModeViewingArchive {
-		return m.theme.Styles.Help.Render(m.helpText("1-4/Tab: artifact  j/k: scroll  a/Esc: index  q: quit"))
-	}
-	tabRange := "1-4"
-	if m.isGitRepo {
-		tabRange = "1-5"
+		return m.theme.Styles.Help.Render(m.helpText(
+			tabKeys + ": artifact  " + pairedKeyLabel(keys.Down, keys.Up) + ": scroll  " +
+				combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit",
+		))
 	}
 	if m.tab == TabGit {
 		if m.gitState.ErrMsg != "" {
 			return m.theme.Styles.Error.Render(m.helpText(m.gitState.ErrMsg))
 		}
 		if m.gitState.ShowingDiff {
-			return m.theme.Styles.Help.Render(m.helpText("d/Esc: back  [/]: prev/next  j/k: vertical  h/l: ←→ horizontal  q: quit"))
+			text := combinedKeyLabel(keys.ViewDiff, keys.Back) + ": back  " + pairedKeyLabel(keys.PreviousDiff, keys.NextDiff) +
+				": previous/next  " + pairedKeyLabel(keys.Down, keys.Up) + ": vertical  " +
+				pairedKeyLabel(keys.Previous, keys.Next) + ": horizontal  " + combinedKeyLabel(keys.Quit) + ": quit"
+			return m.theme.Styles.Help.Render(m.helpText(text))
 		}
-		text := "h/l: change  " + tabRange + "/Tab: artifact  j/k: navigate  Enter/e: open file  d: view diff"
+		text := pairedKeyLabel(keys.Previous, keys.Next) + ": change  " + tabKeys + ": artifact  " +
+			pairedKeyLabel(keys.Down, keys.Up) + ": navigate  " + combinedKeyLabel(keys.ViewDiff, keys.Open) + ": view diff"
 		if !m.readOnly {
-			text += "  s: stage/unstage"
+			text += "  " + primaryKeyLabel(keys.Stage) + ": stage/unstage"
 		}
-		return m.theme.Styles.Help.Render(m.helpText(text + "  Esc: index  q: quit"))
+		return m.theme.Styles.Help.Render(m.helpText(text + "  " + combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit"))
 	}
 	if m.tab == TabTasks {
-		text := "h/l: change  " + tabRange + "/Tab: artifact  j/k: navigate"
+		text := pairedKeyLabel(keys.Previous, keys.Next) + ": change  " + tabKeys + ": artifact  " +
+			pairedKeyLabel(keys.Down, keys.Up) + ": navigate"
 		if !m.readOnly {
-			text += "  Space: toggle  e: edit"
+			text += "  " + primaryKeyLabel(keys.ToggleTask) + ": toggle  " + primaryKeyLabel(keys.Open) + ": edit"
 		}
-		return m.theme.Styles.Help.Render(m.helpText(text + "  i: info  Esc: index  q: quit"))
+		return m.theme.Styles.Help.Render(m.helpText(text + "  " + primaryKeyLabel(keys.Info) + ": info  " +
+			combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit"))
 	}
-	text := "h/l: change  " + tabRange + "/Tab: artifact  j/k: scroll"
+	text := pairedKeyLabel(keys.Previous, keys.Next) + ": change  " + tabKeys + ": artifact  " +
+		pairedKeyLabel(keys.Down, keys.Up) + ": scroll"
 	if !m.readOnly {
-		text += "  e: edit"
+		text += "  " + primaryKeyLabel(keys.Open) + ": edit"
 	}
-	return m.theme.Styles.Help.Render(m.helpText(text + "  i: info  Esc: index  q: quit"))
+	return m.theme.Styles.Help.Render(m.helpText(text + "  " + primaryKeyLabel(keys.Info) + ": info  " +
+		combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit"))
 }

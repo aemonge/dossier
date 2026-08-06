@@ -33,14 +33,13 @@ func (m *Model) ensureRenderer(width int) {
 	if m.glamourRenderer != nil && m.lastRenderWidth == width {
 		return
 	}
-	style := m.theme.GlamourStyle
-	if style == "" {
-		style = "dark"
+	options := []glamour.TermRendererOption{glamour.WithWordWrap(width)}
+	if m.theme.GlamourStyle == "" {
+		options = append(options, glamour.WithStandardStyle("dark"))
+	} else {
+		options = append(options, glamour.WithStyles(m.theme.GlamourStyles))
 	}
-	r, err := glamour.NewTermRenderer(
-		glamour.WithStandardStyle(style),
-		glamour.WithWordWrap(width),
-	)
+	r, err := glamour.NewTermRenderer(options...)
 	if err != nil {
 		m.glamourRenderer = nil
 		return

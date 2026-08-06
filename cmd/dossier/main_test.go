@@ -20,6 +20,28 @@ func TestParseOptionsReadOnly(t *testing.T) {
 	}
 }
 
+func TestParseOptionsConfigPath(t *testing.T) {
+	var output bytes.Buffer
+	opts, _, err := parseOptions([]string{"--config", "/tmp/dossier.toml"}, &output)
+	if err != nil {
+		t.Fatalf("parseOptions: %v", err)
+	}
+	if opts.configPath != "/tmp/dossier.toml" {
+		t.Fatalf("configPath = %q", opts.configPath)
+	}
+}
+
+func TestParseOptionsTracksExplicitTheme(t *testing.T) {
+	var output bytes.Buffer
+	opts, _, err := parseOptions([]string{"--theme", "light"}, &output)
+	if err != nil {
+		t.Fatalf("parseOptions: %v", err)
+	}
+	if !opts.themeSet || opts.themeName != "light" {
+		t.Fatalf("expected explicit light theme, got %+v", opts)
+	}
+}
+
 func TestParseOptionsHelpAliases(t *testing.T) {
 	for _, arg := range []string{"-h", "--help"} {
 		t.Run(arg, func(t *testing.T) {
@@ -40,7 +62,7 @@ func TestUsageUsesConventionalFlagSpelling(t *testing.T) {
 	writeUsage(&output)
 	usage := output.String()
 
-	for _, want := range []string{"-h, --help", "--read-only", "--theme <name>", "--version"} {
+	for _, want := range []string{"-h, --help", "--config <path>", "--read-only", "--theme <name>", "gruvbox-light-soft", "--version"} {
 		if !strings.Contains(usage, want) {
 			t.Errorf("expected usage to contain %q, got:\n%s", want, usage)
 		}

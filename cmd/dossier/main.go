@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/fselich/dossier/internal/openspec"
+	"github.com/fselich/dossier/internal/settings"
 	"github.com/fselich/dossier/internal/ui"
 )
 
@@ -15,6 +16,8 @@ var version string
 
 type cliOptions struct {
 	themeName   string
+	themeSet    bool
+	configPath  string
 	showVersion bool
 	showHelp    bool
 	readOnly    bool
@@ -26,7 +29,8 @@ func parseOptions(args []string, output io.Writer) (cliOptions, []string, error)
 
 	flags := flag.NewFlagSet("dossier", flag.ContinueOnError)
 	flags.SetOutput(output)
-	flags.StringVar(&opts.themeName, "theme", "none", "Visual theme (dark, none, light, dracula)")
+	flags.StringVar(&opts.configPath, "config", "", "Configuration file (default: XDG config path)")
+	flags.StringVar(&opts.themeName, "theme", "none", "Base theme (dark, none, light, dracula, gruvbox-light-soft)")
 	flags.BoolVar(&opts.showVersion, "version", false, "Print version and exit")
 	flags.BoolVar(&opts.showHelp, "help", false, "Print help and exit")
 	flags.BoolVar(&shortHelp, "h", false, "Print help and exit")
@@ -37,6 +41,11 @@ func parseOptions(args []string, output io.Writer) (cliOptions, []string, error)
 		return cliOptions{}, nil, err
 	}
 	opts.showHelp = opts.showHelp || shortHelp
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "theme" {
+			opts.themeSet = true
+		}
+	})
 	return opts, flags.Args(), nil
 }
 
@@ -47,8 +56,9 @@ A keyboard-driven TUI for navigating OpenSpec project artifacts.
 
 Options:
   -h, --help          Print help and exit
+      --config <path> Configuration file (default: XDG config path)
       --read-only     Disable task toggles, editor launch, and Git stage/unstage
-      --theme <name>  Visual theme: dark, none, light, or dracula (default: none)
+      --theme <name>  Base theme: dark, none, light, dracula, or gruvbox-light-soft (default: none)
       --version       Print version and exit
 `)
 }
@@ -75,9 +85,17 @@ func main() {
 		os.Exit(0)
 	}
 
-	theme, ok := ui.LookupTheme(opts.themeName)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: unknown theme %q. Available: dark, none, light, dracula\n", opts.themeName)
+	appConfig, _, err := settings.Load(opts.configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+	if opts.themeSet {
+		appConfig.Theme.Base = opts.themeName
+	}
+	theme, err := ui.BuildTheme(appConfig.Theme)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error: loading theme:", err)
 		os.Exit(1)
 	}
 
@@ -105,14 +123,14 @@ func main() {
 			fmt.Fprintln(os.Stderr, "error:", err)
 			os.Exit(1)
 		}
-		model = ui.NewSinglePath(project, cfg, pathArg, loader, theme, opts.readOnly)
+		model = ui.NewSinglePath(project, cfg, pathArg, loader, theme, appConfig.Keys, opts.readOnly)
 	} else {
 		project, err = openspec.LoadFrom(cwd)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		model = ui.New(project, cfg, cwd, loader, theme, opts.readOnly)
+		model = ui.New(project, cfg, cwd, loader, theme, appConfig.Keys, opts.readOnly)
 	}
 
 	p := tea.NewProgram(model)

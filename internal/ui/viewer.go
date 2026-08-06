@@ -14,12 +14,13 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.gitState.ErrMsg = ""
 	}
 
-	switch msg.String() {
+	keys := m.effectiveKeyMap().Viewer
+	switch {
 
-	case "q", "ctrl+c":
+	case matchesKey(msg, keys.Quit):
 		return m, tea.Quit
 
-	case "s":
+	case matchesKey(msg, keys.Stage):
 		if m.readOnly || m.tab != TabGit || m.gitState.ShowingDiff || len(m.gitState.Files) == 0 {
 			return m, nil
 		}
@@ -50,12 +51,12 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.refreshGitViewport()
 		return m, nil
 
-	case "i":
+	case matchesKey(msg, keys.Info):
 		m.prevMode = m.mode
 		m.mode = ModeViewingConfig
 		return m.commitStateChange()
 
-	case "a", "esc":
+	case matchesKey(msg, keys.Back):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.toggleGitDiff()
 			return m, nil
@@ -63,7 +64,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		m.enterIndex()
 		return m, nil
 
-	case "h":
+	case matchesKey(msg, keys.Previous):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.gitState.ScrollX -= 10
 			if m.gitState.ScrollX < 0 {
@@ -79,7 +80,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.commitStateChange()
 		}
 
-	case "l":
+	case matchesKey(msg, keys.Next):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.gitState.ScrollX += 10
 			m.refreshGitViewport()
@@ -92,13 +93,13 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.commitStateChange()
 		}
 
-	case "right":
+	case matchesKey(msg, keys.Right):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.gitState.ScrollX += 10
 			m.refreshGitViewport()
 		}
 
-	case "left":
+	case matchesKey(msg, keys.Left):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.gitState.ScrollX -= 10
 			if m.gitState.ScrollX < 0 {
@@ -107,31 +108,31 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.refreshGitViewport()
 		}
 
-	case "]":
+	case matchesKey(msg, keys.NextDiff):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.moveGitDiffCursorDown()
 			m.loadDiffForFile(m.gitState.Cursor)
 			return m, nil
 		}
 
-	case "[":
+	case matchesKey(msg, keys.PreviousDiff):
 		if m.tab == TabGit && m.gitState.ShowingDiff {
 			m.moveGitDiffCursorUp()
 			m.loadDiffForFile(m.gitState.Cursor)
 			return m, nil
 		}
 
-	case "1":
+	case matchesKey(msg, keys.ProposalTab):
 		if m.tabAvailable(TabProposal) {
 			m.tab = TabProposal
 			return m.commitStateChange()
 		}
-	case "2":
+	case matchesKey(msg, keys.DesignTab):
 		if m.tabAvailable(TabDesign) {
 			m.tab = TabDesign
 			return m.commitStateChange()
 		}
-	case "3":
+	case matchesKey(msg, keys.SpecsTab):
 		if m.tabAvailable(TabSpecs) {
 			if m.tab == TabSpecs {
 				ch := m.current()
@@ -145,36 +146,36 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 			return m.commitStateChange()
 		}
-	case "4":
+	case matchesKey(msg, keys.TasksTab):
 		if m.tabAvailable(TabTasks) {
 			m.tab = TabTasks
 			return m.commitStateChange()
 		}
-	case "5":
+	case matchesKey(msg, keys.GitTab):
 		if m.tabAvailable(TabGit) {
 			m.tab = TabGit
 			return m.commitStateChange()
 		}
 
-	case "tab":
+	case matchesKey(msg, keys.NextTab):
 		nxt := m.nextAvailableTab(m.tab, 1)
 		if nxt != m.tab {
 			m.tab = nxt
 			return m.commitStateChange()
 		}
-	case "shift+tab":
+	case matchesKey(msg, keys.PreviousTab):
 		prv := m.nextAvailableTab(m.tab, -1)
 		if prv != m.tab {
 			m.tab = prv
 			return m.commitStateChange()
 		}
 
-	case "d":
+	case matchesKey(msg, keys.ViewDiff):
 		if m.tab == TabGit {
 			m.toggleGitDiff()
 		}
 
-	case "j", "down":
+	case matchesKey(msg, keys.Down):
 		switch m.tab {
 		case TabTasks:
 			if m.mode == ModeViewingArchive {
@@ -194,7 +195,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.vp.ScrollDown(1)
 		}
 
-	case "pgdown":
+	case matchesKey(msg, keys.PageDown):
 		switch m.tab {
 		case TabTasks:
 		case TabGit:
@@ -205,7 +206,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.vp.PageDown()
 		}
 
-	case "k", "up":
+	case matchesKey(msg, keys.Up):
 		switch m.tab {
 		case TabTasks:
 			if m.mode == ModeViewingArchive {
@@ -225,7 +226,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.vp.ScrollUp(1)
 		}
 
-	case "pgup":
+	case matchesKey(msg, keys.PageUp):
 		switch m.tab {
 		case TabTasks:
 		case TabGit:
@@ -236,7 +237,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.vp.PageUp()
 		}
 
-	case "space":
+	case matchesKey(msg, keys.ToggleTask):
 		if m.mode == ModeViewingArchive {
 			return m, nil
 		}
@@ -244,13 +245,7 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, m.doToggle()
 		}
 
-	case "enter":
-		if m.tab == TabGit {
-			m.toggleGitDiff()
-			return m, nil
-		}
-
-	case "e":
+	case matchesKey(msg, keys.Open):
 		if m.tab == TabGit {
 			m.toggleGitDiff()
 			return m, nil

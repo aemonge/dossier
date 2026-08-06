@@ -659,21 +659,22 @@ func sameStrings(a, b []string) bool {
 }
 
 func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	keyMap := m.effectiveKeyMap()
 	if m.index.FilterActive {
-		switch msg.String() {
-		case "esc":
+		switch {
+		case matchesKey(msg, keyMap.Filter.Cancel):
 			m.index.FilterText = m.index.PrevFilterText
 			m.index.FilterActive = false
 			m.applyFilter()
 			m.refreshIndexViewport()
 			return m, nil
 
-		case "enter":
+		case matchesKey(msg, keyMap.Filter.Accept):
 			m.index.FilterActive = false
 			m.refreshIndexViewport()
 			return m, nil
 
-		case "backspace":
+		case matchesKey(msg, keyMap.Filter.Backspace):
 			if len(m.index.FilterText) > 0 {
 				m.index.FilterText = m.index.FilterText[:len(m.index.FilterText)-1]
 				m.applyFilter()
@@ -691,21 +692,21 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	switch msg.String() {
+	switch {
 
-	case "/":
+	case matchesKey(msg, keyMap.Index.Filter):
 		m.index.PrevFilterText = m.index.FilterText
 		m.index.FilterText = ""
 		m.index.FilterActive = true
 		m.index.FilterIndices = nil
 		m.refreshIndexViewport()
 
-	case "i":
+	case matchesKey(msg, keyMap.Index.Info):
 		m.prevMode = m.mode
 		m.mode = ModeViewingConfig
 		return m.commitStateChange()
 
-	case "esc":
+	case matchesKey(msg, keyMap.Index.Back):
 		if m.index.FilterText != "" {
 			m.index.FilterText = ""
 			m.index.FilterIndices = nil
@@ -714,19 +715,19 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Quit
 
-	case "j", "down":
+	case matchesKey(msg, keyMap.Index.Down):
 		if m.index.Cursor < m.visibleItemCount()-1 {
 			m.index.Cursor++
 		}
 		m.refreshIndexViewport()
 
-	case "k", "up":
+	case matchesKey(msg, keyMap.Index.Up):
 		if m.index.Cursor > 0 {
 			m.index.Cursor--
 		}
 		m.refreshIndexViewport()
 
-	case "enter":
+	case matchesKey(msg, keyMap.Index.Open):
 		if m.visibleItemCount() > 0 {
 			item := m.index.Items[m.visibleItemIdx(m.index.Cursor)]
 			m.renderCache = make(map[Tab]string)
@@ -762,7 +763,7 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.commitStateChange()
 		}
 
-	case "space":
+	case matchesKey(msg, keyMap.Index.Toggle):
 		if m.visibleItemCount() > 0 {
 			item := m.index.Items[m.visibleItemIdx(m.index.Cursor)]
 			if item.kind == indexKindSection {
@@ -818,7 +819,7 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case "s":
+	case matchesKey(msg, keyMap.Index.Sort):
 		savedKind := indexKindActive
 		savedIdx := -1
 		savedReqIdx := 0
