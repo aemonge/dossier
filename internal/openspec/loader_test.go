@@ -1,10 +1,24 @@
 package openspec
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+type failingReadFS struct {
+	OSFS
+	path string
+}
+
+func (fs failingReadFS) ReadFile(name string) ([]byte, error) {
+	if name == fs.path {
+		return nil, fmt.Errorf("injected read failure")
+	}
+	return fs.OSFS.ReadFile(name)
+}
 
 func setupProjectDir(t *testing.T, changes []string) string {
 	t.Helper()
@@ -521,6 +535,266 @@ func TestSchemaAwareChangeModel(t *testing.T) {
 		}
 		if _, ok := ch.ArtifactByID("proposal"); !ok {
 			t.Fatal("expected readable proposal despite malformed metadata")
+		}
+	})
+}
+
+func TestDiscoverChangeArtifacts(t *testing.T) {
+	t.Run("discovers arbitrary markdown artifacts deterministically", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"fix-cache"})
+		dir := filepath.Join(root, "openspec", "changes", "fix-cache")
+		if err := os.WriteFile(filepath.Join(dir, ".openspec.yaml"), []byte("schema: bugfix\ncreated: 2026-05-24\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		for name, content := range map[string]string{
+			"proposal.md":     "# Proposal",
+			"reproduction.md": "# Reproduction",
+			"diagnosis.md":    "# Diagnosis",
+			"tasks.md":        "- [ ] fix",
+			"README.md":       "generated description",
+			"notes.txt":       "not markdown",
+			".hidden.md":      "hidden",
+		} {
+			if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		proj, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		for _, id := range []string{"proposal", "reproduction", "diagnosis", "tasks"} {
+			if _, ok := ch.ArtifactByID(id); !ok {
+				t.Errorf("expected discovered artifact %q", id)
+			}
+		}
+		for _, id := range []string{"README", "notes", ".hidden"} {
+			if _, ok := ch.ArtifactByID(id); ok {
+				t.Errorf("did not expect artifact %q", id)
+			}
+		}
+
+		projAgain, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(ch.Artifacts) != len(projAgain.Changes[0].Artifacts) {
+			t.Fatalf("artifact count changed between loads")
+		}
+		for i := range ch.Artifacts {
+			if ch.Artifacts[i].ID != projAgain.Changes[0].Artifacts[i].ID {
+				t.Errorf("artifact order changed at %d: %q != %q", i, ch.Artifacts[i].ID, projAgain.Changes[0].Artifacts[i].ID)
+			}
+		}
+	})
+
+	t.Run("groups nested markdown outputs under their top-level artifact", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"research-change"})
+		dir := filepath.Join(root, "openspec", "changes", "research-change")
+		files := map[string]string{
+			"evidence/benchmarks/latency.md": "# Latency",
+			"evidence/compatibility.md":      "# Compatibility",
+			"specs/auth/spec.md":             "# Auth",
+			"specs/payments/spec.md":         "# Payments",
+		}
+		for name, content := range files {
+			path := filepath.Join(dir, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		proj, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		evidence, ok := ch.ArtifactByID("evidence")
+		if !ok {
+			t.Fatal("expected evidence artifact")
+		}
+		if len(evidence.Outputs) != 2 {
+			t.Fatalf("expected 2 evidence outputs, got %d", len(evidence.Outputs))
+		}
+		if evidence.Outputs[0].RelativePath != "evidence/benchmarks/latency.md" || evidence.Outputs[1].RelativePath != "evidence/compatibility.md" {
+			t.Fatalf("unexpected evidence output order: %#v", evidence.Outputs)
+		}
+		specs, ok := ch.ArtifactByID("specs")
+		if !ok || len(specs.Outputs) != 2 {
+			t.Fatalf("expected two specs outputs, got %#v", specs)
+		}
+	})
+
+	t.Run("ignores symlinks that could escape the change root", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"safe-change"})
+		dir := filepath.Join(root, "openspec", "changes", "safe-change")
+		outside := filepath.Join(root, "outside.md")
+		if err := os.WriteFile(outside, []byte("secret outside content"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(dir, "escaped.md")); err != nil {
+			t.Skipf("symlink unavailable: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("# Safe"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		proj, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		if _, ok := ch.ArtifactByID("escaped"); ok {
+			t.Fatal("symlinked output must not be discovered")
+		}
+		if ch.Diagnostic == "" {
+			t.Fatal("expected diagnostic for skipped symlink")
+		}
+	})
+
+	t.Run("caps discovery and reports the limit once", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"large-change"})
+		dir := filepath.Join(root, "openspec", "changes", "large-change")
+		if err := os.MkdirAll(filepath.Join(dir, "artifacts"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		for i := 0; i < maxDiscoveredArtifactFiles+1; i++ {
+			name := filepath.Join(dir, "artifacts", fmt.Sprintf("artifact-%03d.md", i))
+			if err := os.WriteFile(name, []byte("# Artifact"), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(dir, "z.md"), []byte("# Extra"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		proj, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		artifact, ok := ch.ArtifactByID("artifacts")
+		if !ok {
+			t.Fatal("expected grouped artifacts output")
+		}
+		if len(artifact.Outputs) != maxDiscoveredArtifactFiles {
+			t.Fatalf("expected %d discovered outputs, got %d", maxDiscoveredArtifactFiles, len(artifact.Outputs))
+		}
+		if count := strings.Count(ch.Diagnostic, "artifact discovery limited"); count != 1 {
+			t.Fatalf("expected one limit diagnostic, got %d: %q", count, ch.Diagnostic)
+		}
+	})
+
+	t.Run("reports unreadable markdown and preserves readable artifacts", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"partial-change"})
+		dir := filepath.Join(root, "openspec", "changes", "partial-change")
+		brokenPath := filepath.Join(dir, "broken.md")
+		if err := os.WriteFile(brokenPath, []byte("# Broken"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("# Proposal"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		loader := NewLoader(failingReadFS{OSFS: OSFS{}, path: brokenPath})
+
+		proj, err := loader.LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		if _, ok := ch.ArtifactByID("proposal"); !ok {
+			t.Fatal("expected readable proposal")
+		}
+		if _, ok := ch.ArtifactByID("broken"); ok {
+			t.Fatal("unreadable output must not be present")
+		}
+		if !strings.Contains(ch.Diagnostic, "read broken.md: injected read failure") {
+			t.Fatalf("expected read diagnostic, got %q", ch.Diagnostic)
+		}
+	})
+
+	t.Run("discovers custom artifacts in archived changes", func(t *testing.T) {
+		root := t.TempDir()
+		archiveRoot := filepath.Join(root, "openspec", "changes", "archive")
+		fixtures := []struct {
+			dir       string
+			schema    string
+			artifacts map[string]string
+		}{
+			{
+				dir:    "2026-05-24-investigate-cache",
+				schema: "spike",
+				artifacts: map[string]string{
+					"proposal.md": "# Proposal", "research.md": "# Research", "decision.md": "# Decision",
+				},
+			},
+			{
+				dir:    "2026-05-23-add-export",
+				schema: "feature",
+				artifacts: map[string]string{
+					"proposal.md": "# Proposal", "design.md": "# Design", "tasks.md": "- [x] done",
+				},
+			},
+			{
+				dir: "legacy-unknown",
+				artifacts: map[string]string{
+					"notes.md": "# Notes",
+				},
+			},
+		}
+		for _, fixture := range fixtures {
+			dir := filepath.Join(archiveRoot, fixture.dir)
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if fixture.schema != "" {
+				metadata := "schema: " + fixture.schema + "\ncreated: 2026-05-24\n"
+				if err := os.WriteFile(filepath.Join(dir, ".openspec.yaml"), []byte(metadata), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for name, content := range fixture.artifacts {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+
+		changes, err := ListArchiveChangesFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(changes) != 3 {
+			t.Fatalf("expected three archives, got %d", len(changes))
+		}
+		byName := make(map[string]Change, len(changes))
+		for _, change := range changes {
+			byName[change.Name] = change
+		}
+		spike := byName["investigate-cache"]
+		if spike.Schema != "spike" || spike.DisplayDate != "24/05/2026" {
+			t.Errorf("unexpected spike metadata: schema=%q date=%q", spike.Schema, spike.DisplayDate)
+		}
+		for _, id := range []string{"proposal", "research", "decision"} {
+			if _, ok := spike.ArtifactByID(id); !ok {
+				t.Errorf("expected archived spike artifact %q", id)
+			}
+		}
+		feature := byName["add-export"]
+		if feature.Schema != "feature" {
+			t.Errorf("expected feature schema, got %q", feature.Schema)
+		}
+		unknown := byName["legacy-unknown"]
+		if unknown.Schema != "" {
+			t.Errorf("expected unknown schema, got %q", unknown.Schema)
+		}
+		if _, ok := unknown.ArtifactByID("notes"); !ok {
+			t.Fatal("expected unknown-schema archive notes")
 		}
 	})
 }

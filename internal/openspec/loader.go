@@ -63,7 +63,7 @@ type Change struct {
 	Artifacts   []ChangeArtifact
 
 	// Fixed artifact fields remain temporarily while UI consumers migrate to
-	// Artifacts. loadConventionalArtifacts derives them from the dynamic model.
+	// Artifacts. loadDiscoveredArtifacts derives them from the dynamic model.
 	Proposal  Artifact
 	Design    Artifact
 	Tasks     Artifact
@@ -308,7 +308,7 @@ func (l *Loader) LoadFromPath(path string) (*Project, error) {
 
 func (l *Loader) ReloadChange(ch Change) Change {
 	l.loadChangeMetadata(&ch)
-	l.loadConventionalArtifacts(&ch)
+	l.loadDiscoveredArtifacts(&ch)
 	return ch
 }
 
@@ -317,7 +317,7 @@ func (l *Loader) ReloadChange(ch Change) Change {
 func (l *Loader) loadChangeFromDir(dir, name, displayDate string) Change {
 	ch := Change{Name: name, Path: dir, DisplayDate: displayDate}
 	l.loadChangeMetadata(&ch)
-	l.loadConventionalArtifacts(&ch)
+	l.loadDiscoveredArtifacts(&ch)
 	return ch
 }
 
@@ -338,47 +338,163 @@ func (l *Loader) loadChangeMetadata(ch *Change) {
 	ch.Created = metadata.Created
 }
 
-func (l *Loader) loadConventionalArtifacts(ch *Change) {
-	ch.Artifacts = nil
-	if artifact, ok := l.loadDiscoveredFileArtifact(ch.Path, "proposal", "proposal.md"); ok {
-		ch.Artifacts = append(ch.Artifacts, artifact)
+const maxDiscoveredArtifactFiles = 512
+
+func (l *Loader) loadDiscoveredArtifacts(ch *Change) {
+	outputs, diagnostics := l.discoverMarkdownOutputs(ch.Path)
+	for _, diagnostic := range diagnostics {
+		appendChangeDiagnostic(ch, diagnostic)
 	}
 
-	_, specFiles := l.loadSpecs(filepath.Join(ch.Path, "specs"))
-	if len(specFiles) > 0 {
-		outputs := make([]ArtifactOutput, 0, len(specFiles))
-		for _, spec := range specFiles {
-			outputs = append(outputs, ArtifactOutput{
-				RelativePath: filepath.ToSlash(filepath.Join("specs", spec.Name, "spec.md")),
-				DisplayName:  spec.Name,
-				Content:      spec.Content,
-				Present:      true,
-			})
+	byID := make(map[string][]ArtifactOutput)
+	for _, output := range outputs {
+		id := discoveredArtifactID(output.RelativePath)
+		byID[id] = append(byID[id], output)
+	}
+
+	ids := make([]string, 0, len(byID))
+	for id := range byID {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	if ch.Schema == "spec-driven" {
+		ids = orderSpecDrivenArtifacts(ids)
+	}
+
+	ch.Artifacts = make([]ChangeArtifact, 0, len(ids))
+	for _, id := range ids {
+		artifactOutputs := byID[id]
+		pattern := artifactOutputs[0].RelativePath
+		if len(artifactOutputs) > 1 {
+			pattern = id + "/**/*.md"
 		}
 		ch.Artifacts = append(ch.Artifacts, ChangeArtifact{
-			ID:            "specs",
-			OutputPattern: "specs/**/*.md",
+			ID:            id,
+			OutputPattern: pattern,
 			Status:        ArtifactStatusDone,
-			Outputs:       outputs,
+			Outputs:       artifactOutputs,
 			Source:        ArtifactSourceDiscovered,
 		})
-	}
-
-	if artifact, ok := l.loadDiscoveredFileArtifact(ch.Path, "design", "design.md"); ok {
-		ch.Artifacts = append(ch.Artifacts, artifact)
-	}
-	if artifact, ok := l.loadDiscoveredFileArtifact(ch.Path, "tasks", "tasks.md"); ok {
-		ch.Artifacts = append(ch.Artifacts, artifact)
 	}
 	deriveConventionalFields(ch)
 }
 
-func (l *Loader) loadDiscoveredFileArtifact(root, id, relativePath string) (ChangeArtifact, bool) {
-	data, err := l.fs.ReadFile(filepath.Join(root, relativePath))
-	if err != nil {
-		return ChangeArtifact{}, false
+func (l *Loader) discoverMarkdownOutputs(root string) ([]ArtifactOutput, []string) {
+	var outputs []ArtifactOutput
+	var diagnostics []string
+	limitReported := false
+	reportLimit := func() {
+		if limitReported {
+			return
+		}
+		diagnostics = append(diagnostics, fmt.Sprintf("artifact discovery limited to %d Markdown files", maxDiscoveredArtifactFiles))
+		limitReported = true
 	}
-	return discoveredArtifact(id, filepath.ToSlash(relativePath), id, string(data)), true
+	var walk func(string)
+	walk = func(relativeDir string) {
+		if len(outputs) >= maxDiscoveredArtifactFiles {
+			return
+		}
+		dir := filepath.Join(root, filepath.FromSlash(relativeDir))
+		entries, err := l.fs.ReadDir(dir)
+		if err != nil {
+			diagnostics = append(diagnostics, fmt.Sprintf("discover %s: %v", displayRelativePath(relativeDir), err))
+			return
+		}
+		sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+		for _, entry := range entries {
+			if len(outputs) >= maxDiscoveredArtifactFiles {
+				reportLimit()
+				return
+			}
+			name := entry.Name()
+			if strings.HasPrefix(name, ".") {
+				continue
+			}
+			relativePath := filepath.ToSlash(filepath.Join(relativeDir, name))
+			if entry.Type()&os.ModeSymlink != 0 {
+				diagnostics = append(diagnostics, "ignored symlink "+relativePath)
+				continue
+			}
+			if entry.IsDir() {
+				walk(relativePath)
+				continue
+			}
+			if !strings.EqualFold(filepath.Ext(name), ".md") || (relativeDir == "" && strings.EqualFold(name, "README.md")) {
+				continue
+			}
+			data, err := l.fs.ReadFile(filepath.Join(root, filepath.FromSlash(relativePath)))
+			if err != nil {
+				diagnostics = append(diagnostics, fmt.Sprintf("read %s: %v", relativePath, err))
+				continue
+			}
+			outputs = append(outputs, ArtifactOutput{
+				RelativePath: relativePath,
+				DisplayName:  discoveredOutputName(relativePath),
+				Content:      string(data),
+				Present:      true,
+			})
+		}
+	}
+	walk("")
+	sort.Slice(outputs, func(i, j int) bool { return outputs[i].RelativePath < outputs[j].RelativePath })
+	return outputs, diagnostics
+}
+
+func discoveredArtifactID(relativePath string) string {
+	parts := strings.Split(filepath.ToSlash(relativePath), "/")
+	if len(parts) > 1 {
+		return parts[0]
+	}
+	return strings.TrimSuffix(parts[0], filepath.Ext(parts[0]))
+}
+
+func discoveredOutputName(relativePath string) string {
+	parts := strings.Split(filepath.ToSlash(relativePath), "/")
+	if len(parts) == 3 && parts[0] == "specs" && parts[2] == "spec.md" {
+		return parts[1]
+	}
+	withoutExt := strings.TrimSuffix(filepath.ToSlash(relativePath), filepath.Ext(relativePath))
+	if len(parts) > 1 {
+		return strings.TrimPrefix(withoutExt, parts[0]+"/")
+	}
+	return withoutExt
+}
+
+func orderSpecDrivenArtifacts(ids []string) []string {
+	preferred := []string{"proposal", "specs", "design", "tasks"}
+	present := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		present[id] = true
+	}
+	ordered := make([]string, 0, len(ids))
+	for _, id := range preferred {
+		if present[id] {
+			ordered = append(ordered, id)
+			delete(present, id)
+		}
+	}
+	for _, id := range ids {
+		if present[id] {
+			ordered = append(ordered, id)
+		}
+	}
+	return ordered
+}
+
+func appendChangeDiagnostic(ch *Change, diagnostic string) {
+	if ch.Diagnostic == "" {
+		ch.Diagnostic = diagnostic
+		return
+	}
+	ch.Diagnostic += "; " + diagnostic
+}
+
+func displayRelativePath(path string) string {
+	if path == "" {
+		return "."
+	}
+	return path
 }
 
 func deriveConventionalFields(ch *Change) {
@@ -418,54 +534,6 @@ func firstOutputArtifact(artifact ChangeArtifact) Artifact {
 		}
 	}
 	return Artifact{}
-}
-
-func discoveredArtifact(id, relativePath, displayName, content string) ChangeArtifact {
-	return ChangeArtifact{
-		ID:            id,
-		OutputPattern: relativePath,
-		Status:        ArtifactStatusDone,
-		Outputs: []ArtifactOutput{{
-			RelativePath: relativePath,
-			DisplayName:  displayName,
-			Content:      content,
-			Present:      true,
-		}},
-		Source: ArtifactSourceDiscovered,
-	}
-}
-
-func (l *Loader) loadFile(path string) Artifact {
-	data, err := l.fs.ReadFile(path)
-	if err != nil {
-		return Artifact{}
-	}
-	return Artifact{Content: string(data), Present: true}
-}
-
-func (l *Loader) loadSpecs(dir string) (Artifact, []NamedSpec) {
-	entries, err := l.fs.ReadDir(dir)
-	if err != nil {
-		return Artifact{}, nil
-	}
-	var parts []string
-	var files []NamedSpec
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		data, err := l.fs.ReadFile(filepath.Join(dir, e.Name(), "spec.md"))
-		if err != nil {
-			continue
-		}
-		content := string(data)
-		files = append(files, NamedSpec{Name: e.Name(), Content: content})
-		parts = append(parts, "# "+e.Name()+"\n\n"+content)
-	}
-	if len(parts) == 0 {
-		return Artifact{}, nil
-	}
-	return Artifact{Content: strings.Join(parts, "\n\n---\n\n"), Present: true}, files
 }
 
 func parseArchiveName(dir string) (name, date string) {

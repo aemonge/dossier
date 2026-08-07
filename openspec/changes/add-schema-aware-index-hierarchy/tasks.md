@@ -7,10 +7,10 @@
 
 ## 2. Safe filesystem discovery and archive fallback
 
-- [ ] 2.1 Add failing discovery tests for arbitrary Markdown artifacts, nested outputs, deterministic order, missing schema, malformed metadata, hidden files, symlink escapes, file-count limits, and read failures (estimate: 6 hours)
-- [ ] 2.2 Implement safe degraded artifact discovery rooted beneath an active or archived change (estimate: 7 hours)
-- [ ] 2.3 Add archived custom-schema fixtures for feature, bugfix, spike, unknown schema, and date/clean-name handling (estimate: 4 hours)
-- [ ] 2.4 Migrate archived change loading to schema metadata plus safe discovery without changing read-only guarantees (estimate: 5 hours)
+- [x] 2.1 Add failing discovery tests for arbitrary Markdown artifacts, nested outputs, deterministic order, missing schema, malformed metadata, hidden files, symlink escapes, file-count limits, and read failures (estimate: 6 hours)
+- [x] 2.2 Implement safe degraded artifact discovery rooted beneath an active or archived change (estimate: 7 hours)
+- [x] 2.3 Add archived custom-schema fixtures for feature, bugfix, spike, unknown schema, and date/clean-name handling (estimate: 4 hours)
+- [x] 2.4 Migrate archived change loading to schema metadata plus safe discovery without changing read-only guarantees (estimate: 5 hours)
 
 ## 3. OpenSpec schema/status adapter
 
