@@ -132,6 +132,14 @@ type Model struct {
 	changeIdx int
 	tab       Tab
 
+	openSpec              openSpecClient
+	schemaCatalog         []openspec.SchemaInfo
+	schemaCatalogErr      string
+	discoveryFingerprints map[string]string
+	enrichedFingerprints  map[string]string
+	pendingEnrichments    map[string]string
+	enrichmentRetryAfter  map[string]time.Time
+
 	vp      viewport.Model
 	vpReady bool
 
@@ -166,15 +174,20 @@ type Model struct {
 
 func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
 	m := Model{
-		root:          root,
-		loader:        loader,
-		project:       project,
-		renderCache:   make(map[Tab]string),
-		projectConfig: cfg,
-		theme:         theme,
-		keyMap:        keyMap,
-		readOnly:      readOnly,
-		isGitRepo:     git.IsInsideWorkTree(root),
+		root:                  root,
+		loader:                loader,
+		project:               project,
+		openSpec:              openspec.NewOSCLI(),
+		discoveryFingerprints: discoveryFingerprints(project.Changes),
+		enrichedFingerprints:  make(map[string]string),
+		pendingEnrichments:    make(map[string]string),
+		enrichmentRetryAfter:  make(map[string]time.Time),
+		renderCache:           make(map[Tab]string),
+		projectConfig:         cfg,
+		theme:                 theme,
+		keyMap:                keyMap,
+		readOnly:              readOnly,
+		isGitRepo:             git.IsInsideWorkTree(root),
 	}
 	if m.isGitRepo {
 		if r, err := git.WorkTreeRoot(root); err == nil {
@@ -212,7 +225,10 @@ func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root s
 }
 
 func (m Model) Init() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })
+	return tea.Batch(
+		tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) }),
+		func() tea.Msg { return startEnrichmentMsg{} },
+	)
 }
 
 func (m Model) View() tea.View {

@@ -21,10 +21,10 @@
 
 ## 4. Bounded asynchronous enrichment and caching
 
-- [ ] 4.1 Add tests for bounded concurrency, first-frame filesystem skeleton, unchanged fingerprint cache hits, selective invalidation, change deletion during status, and CLI recovery (estimate: 6 hours)
-- [ ] 4.2 Implement asynchronous status commands/messages with bounded concurrency and per-change cache keys (estimate: 7 hours)
-- [ ] 4.3 Update tick polling so cheap metadata/output fingerprints trigger only affected status refreshes rather than all changes every 500 ms (estimate: 5 hours)
-- [ ] 4.4 Add timing-independent UI tests that late enrichment preserves stable selection and expansion (estimate: 4 hours)
+- [x] 4.1 Add tests for bounded concurrency, first-frame filesystem skeleton, unchanged fingerprint cache hits, selective invalidation, change deletion during status, and CLI recovery (estimate: 6 hours)
+- [x] 4.2 Implement asynchronous status commands/messages with bounded concurrency, stale-result guards, retry delay, and per-change cache keys (estimate: 7 hours)
+- [x] 4.3 Update tick polling so cheap metadata/output fingerprints trigger only affected status refreshes rather than all changes every 500 ms (estimate: 5 hours)
+- [x] 4.4 Add timing-independent model tests that late enrichment preserves unchanged authoritative state; hierarchy cursor/expansion coverage continues in tasks 5.5 and 6.2 (estimate: 4 hours)
 
 ## 5. Hierarchical index model and rendering
 

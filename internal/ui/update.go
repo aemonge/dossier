@@ -54,6 +54,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case startEnrichmentMsg:
+		return m, tea.Batch(m.loadSchemaCatalog(), m.scheduleStatusEnrichment())
+
+	case schemaCatalogMsg:
+		if msg.Err != nil {
+			m.schemaCatalogErr = msg.Err.Error()
+		} else {
+			m.schemaCatalog = append([]openspec.SchemaInfo(nil), msg.Schemas...)
+			m.schemaCatalogErr = ""
+		}
+		return m, nil
+
+	case statusEnrichmentMsg:
+		m.applyStatusEnrichment(msg)
+		return m, nil
+
 	case tickMsg:
 		cmd := m.handleTick()
 		nextTick := tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg { return tickMsg(t) })

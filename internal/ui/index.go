@@ -16,15 +16,20 @@ func (m *Model) handleTick() tea.Cmd {
 	if m.mode == ModeViewingArchive || m.mode == ModeViewingSpec {
 		return nil
 	}
+
+	var pollCmd tea.Cmd
 	if m.mode == ModeIndex {
-		return m.pollIndexMode()
-	}
-	if !m.singlePath {
-		if cmd := m.pollNormalModeChanges(); cmd != nil {
-			return cmd
+		pollCmd = m.pollIndexMode()
+	} else {
+		if !m.singlePath {
+			pollCmd = m.pollNormalModeChanges()
+		}
+		if pollCmd == nil {
+			pollCmd = m.pollNormalModeContent()
 		}
 	}
-	return m.pollNormalModeContent()
+	m.reconcileDiscoveryFingerprints()
+	return tea.Batch(pollCmd, m.scheduleStatusEnrichment())
 }
 
 func (m *Model) pollIndexMode() tea.Cmd {
@@ -55,10 +60,8 @@ func (m *Model) pollIndexMode() tea.Cmd {
 		sameStrings(specNames, diskSpecs) {
 		needsRefresh := false
 		for i := range m.project.Changes {
-			ch := &m.project.Changes[i]
-			fresh := m.loader.ReloadChange(*ch)
-			if fresh.Tasks.Present != ch.Tasks.Present || fresh.Tasks.Content != ch.Tasks.Content {
-				ch.Tasks = fresh.Tasks
+			fresh := m.loader.ReloadChange(m.project.Changes[i])
+			if m.adoptDiscoveredChange(i, fresh) {
 				needsRefresh = true
 			}
 		}
@@ -74,7 +77,7 @@ func (m *Model) pollIndexMode() tea.Cmd {
 	}
 
 	if p, err := m.loader.LoadFrom(m.root); err == nil {
-		m.project = p
+		m.adoptDiscoveredProject(p)
 	}
 	var archiveErr error
 	m.index.ArchiveChanges, archiveErr = m.loader.ListArchiveChangesFrom(m.root)
@@ -107,7 +110,7 @@ func (m *Model) pollNormalModeChanges() tea.Cmd {
 			currentName = ch.Name
 		}
 		if p, err := m.loader.LoadFrom(m.root); err == nil {
-			m.project = p
+			m.adoptDiscoveredProject(p)
 			m.changeIdx = 0
 			for i, ch := range p.Changes {
 				if ch.Name == currentName {
@@ -138,6 +141,7 @@ func (m *Model) pollNormalModeContent() tea.Cmd {
 	}
 	fresh := m.loader.ReloadChange(*ch)
 	tasksChanged, viewportDirty := m.mergeReloadedChange(fresh)
+	m.adoptDiscoveredChange(m.changeIdx, fresh)
 
 	if tasksChanged {
 		if cursorText != "" {
