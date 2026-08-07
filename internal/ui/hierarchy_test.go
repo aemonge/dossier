@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -187,6 +188,35 @@ func TestRenderHierarchyDisambiguatesAndAlignsPlanningStatus(t *testing.T) {
 		if got := lipgloss.Width(line); got != m.width-2 {
 			t.Errorf("%s row width = %d, want %d: %q", name, got, m.width-2, line)
 		}
+	}
+}
+
+func TestRenderActiveRowsUseStableTableColumns(t *testing.T) {
+	first := hierarchyChange("add-index-workflow-actions", "spec-driven")
+	first.Tasks = openspec.Artifact{Present: true, Content: "- [ ] one\n"}
+	second := hierarchyChange("add-custom-themes", "spec-driven")
+	second.Tasks = openspec.Artifact{Present: true, Content: strings.Repeat("- [x] done\n", 9) + "- [ ] ten\n"}
+	m := &Model{
+		project: &openspec.Project{Changes: []openspec.Change{first, second}},
+		index: indexState{
+			ExpandedSpecs:     make(map[int]bool),
+			ExpandedChanges:   make(map[string]bool),
+			ExpandedArtifacts: make(map[string]bool),
+		},
+		theme: Theme{Styles: BuildStyles(DarkColors)},
+		width: 108,
+	}
+	m.buildIndexItems()
+	content, _ := m.renderIndexContent()
+	var schemaColumns []int
+	for _, line := range strings.Split(content, "\n") {
+		plain := regexp.MustCompile(`\x1b\[[0-9;:]*m`).ReplaceAllString(line, "")
+		if strings.Contains(plain, "add-index-workflow-actions") || strings.Contains(plain, "add-custom-themes") {
+			schemaColumns = append(schemaColumns, strings.Index(plain, "[spec-driven]"))
+		}
+	}
+	if len(schemaColumns) != 2 || schemaColumns[0] != schemaColumns[1] {
+		t.Fatalf("expected schema badges in one stable column, got %v:\n%s", schemaColumns, content)
 	}
 }
 

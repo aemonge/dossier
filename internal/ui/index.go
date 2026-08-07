@@ -464,6 +464,7 @@ func (m *Model) isCursorAt(rawIdx int) bool {
 
 func (m *Model) renderIndexContent() (string, int) {
 	contentWidth := m.width - 2
+	activeLayout := m.buildActiveRowLayout(contentWidth)
 	var sb strings.Builder
 	line := 0
 	cursorLine := 0
@@ -570,7 +571,7 @@ func (m *Model) renderIndexContent() (string, int) {
 			switch childItem.kind {
 			case indexKindActive:
 				ch := m.project.Changes[childItem.idx]
-				sb.WriteString(m.renderActiveItem(ch, childCursor, contentWidth) + "\n")
+				sb.WriteString(m.renderActiveItem(ch, childCursor, activeLayout) + "\n")
 			case indexKindArtifact:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
 					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor, contentWidth) + "\n")
@@ -655,77 +656,157 @@ func (m *Model) skipToNextSection(start int) int {
 	return len(m.index.Items)
 }
 
-func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, contentWidth int) string {
+type activeRowLayout struct {
+	nameWidth       int
+	barWidth        int
+	schemaWidth     int
+	planningWidth   int
+	tasksWidth      int
+	diagnosticWidth int
+}
+
+func (m *Model) buildActiveRowLayout(contentWidth int) activeRowLayout {
+	layout := activeRowLayout{nameWidth: 8}
+	if m.project == nil {
+		return layout
+	}
+	for _, change := range m.project.Changes {
+		layout.nameWidth = max(layout.nameWidth, lipgloss.Width(change.Name))
+		layout.schemaWidth = max(layout.schemaWidth, lipgloss.Width(activeSchemaText(change)))
+		layout.planningWidth = max(layout.planningWidth, lipgloss.Width(activePlanningText(change)))
+		layout.tasksWidth = max(layout.tasksWidth, lipgloss.Width(activeTasksText(change)))
+		layout.diagnosticWidth = max(layout.diagnosticWidth, lipgloss.Width(activeDiagnosticText(change)))
+	}
+	layout.nameWidth = min(layout.nameWidth, 32)
+	layout.diagnosticWidth = min(layout.diagnosticWidth, 24)
+
+	metadataWidth := layout.schemaWidth
+	if layout.planningWidth > 0 {
+		metadataWidth += layout.planningWidth
+		if layout.schemaWidth > 0 {
+			metadataWidth++
+		}
+	}
+	if layout.tasksWidth > 0 {
+		metadataWidth += layout.tasksWidth
+		if layout.schemaWidth > 0 || layout.planningWidth > 0 {
+			metadataWidth += 3
+		}
+	}
+	if layout.diagnosticWidth > 0 {
+		metadataWidth += layout.diagnosticWidth
+		if metadataWidth > layout.diagnosticWidth {
+			metadataWidth++
+		}
+	}
+
+	available := contentWidth - 2
+	if metadataWidth > 0 {
+		available -= metadataWidth + 1
+	}
+	if layout.tasksWidth > 0 {
+		layout.barWidth = available - layout.nameWidth - 1
+		if layout.barWidth < 4 {
+			layout.nameWidth = max(8, layout.nameWidth-(4-layout.barWidth))
+			layout.barWidth = max(4, available-layout.nameWidth-1)
+		}
+	} else {
+		layout.nameWidth = min(layout.nameWidth, available)
+	}
+	return layout
+}
+
+func activeSchemaText(change openspec.Change) string {
+	if change.Schema == "" {
+		return ""
+	}
+	return "[" + change.Schema + "]"
+}
+
+func activePlanningText(change openspec.Change) string {
+	if len(change.Artifacts) == 0 {
+		return ""
+	}
+	done := 0
+	for _, artifact := range change.Artifacts {
+		if artifact.Status == openspec.ArtifactStatusDone {
+			done++
+		}
+	}
+	return fmt.Sprintf("planning %d/%d", done, len(change.Artifacts))
+}
+
+func activeTasksText(change openspec.Change) string {
+	done, total := taskCounts(change)
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("tasks %d/%d", done, total)
+}
+
+func activeDiagnosticText(change openspec.Change) string {
+	if change.Diagnostic == "" {
+		return ""
+	}
+	return "! " + change.Diagnostic
+}
+
+func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, layout activeRowLayout) string {
 	doneTasks, totalTasks := taskCounts(ch)
 	cursorMark := "  "
 	if cursor {
 		cursorMark = m.theme.Styles.ProgressDone.Render("▶") + " "
 	}
 
-	doneArtifacts := 0
-	for _, artifact := range ch.Artifacts {
-		if artifact.Status == openspec.ArtifactStatusDone {
-			doneArtifacts++
-		}
-	}
-	var summaryParts []string
-	if len(ch.Artifacts) > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("planning %d/%d", doneArtifacts, len(ch.Artifacts)))
-	}
-	if totalTasks > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("tasks %d/%d", doneTasks, totalTasks))
-	}
-
-	var rightParts []string
-	if ch.Schema != "" {
-		rightParts = append(rightParts, m.theme.Styles.ProgressDone.Render("["+ch.Schema+"]"))
-	}
-	if len(summaryParts) > 0 {
-		rightParts = append(rightParts, m.theme.Styles.Help.Render(strings.Join(summaryParts, " · ")))
-	}
-	if ch.Diagnostic != "" {
-		rightParts = append(rightParts, m.theme.Styles.Error.Render("! "+ch.Diagnostic))
-	}
-	right := strings.Join(rightParts, " ")
-
-	const preferredNameWidth = 32
-	nameWidth := preferredNameWidth
-	barWidth := 0
-	if totalTasks > 0 {
-		barWidth = 8
-	}
-	maximumNameWidth := contentWidth - lipgloss.Width(cursorMark) - lipgloss.Width(right) - barWidth - 2
-	if maximumNameWidth < nameWidth {
-		nameWidth = maximumNameWidth
-	}
-	if nameWidth < 8 {
-		nameWidth = 8
-	}
-	name := truncateIndexText(ch.Name, nameWidth)
-	paddedName := name + strings.Repeat(" ", max(0, nameWidth-lipgloss.Width(name)))
-	renderedName := m.theme.Styles.BaseText.Render(paddedName)
+	name := truncateIndexText(ch.Name, layout.nameWidth)
+	name += strings.Repeat(" ", max(0, layout.nameWidth-lipgloss.Width(name)))
+	renderedName := m.theme.Styles.BaseText.Render(name)
 	if cursor {
-		renderedName = m.theme.Styles.IndexActive.Render(paddedName)
+		renderedName = m.theme.Styles.IndexActive.Render(name)
+	}
+	row := cursorMark + renderedName
+
+	if layout.barWidth > 0 {
+		bar := strings.Repeat(" ", layout.barWidth)
+		if totalTasks > 0 {
+			innerWidth := layout.barWidth - 2
+			filled := (doneTasks * innerWidth) / totalTasks
+			filledStyle := m.theme.Styles.ProgressDone
+			if doneTasks == totalTasks {
+				filled = innerWidth
+				filledStyle = m.theme.Styles.ProgressComplete
+			}
+			bar = "[" + filledStyle.Render(strings.Repeat("█", filled)) +
+				m.theme.Styles.ProgressEmpty.Render(strings.Repeat("░", innerWidth-filled)) + "]"
+		}
+		row += " " + bar
 	}
 
-	left := cursorMark + renderedName
-	if totalTasks > 0 {
-		barWidth = contentWidth - lipgloss.Width(left) - lipgloss.Width(right) - 2
-		if barWidth < 4 {
-			barWidth = 4
-		}
-		barInnerWidth := barWidth - 2
-		filled := (doneTasks * barInnerWidth) / totalTasks
-		filledStyle := m.theme.Styles.ProgressDone
-		if doneTasks == totalTasks {
-			filled = barInnerWidth
-			filledStyle = m.theme.Styles.ProgressComplete
-		}
-		bar := "[" + filledStyle.Render(strings.Repeat("█", filled)) +
-			m.theme.Styles.ProgressEmpty.Render(strings.Repeat("░", barInnerWidth-filled)) + "]"
-		left += " " + bar
+	var metadata []string
+	if layout.schemaWidth > 0 {
+		text := activeSchemaText(ch)
+		metadata = append(metadata, m.theme.Styles.ProgressDone.Render(text)+strings.Repeat(" ", layout.schemaWidth-lipgloss.Width(text)))
 	}
-	return rightAlignIndexRow(left, right, contentWidth)
+	if layout.planningWidth > 0 {
+		text := activePlanningText(ch)
+		metadata = append(metadata, m.theme.Styles.Help.Render(text)+strings.Repeat(" ", layout.planningWidth-lipgloss.Width(text)))
+	}
+	if layout.tasksWidth > 0 {
+		text := activeTasksText(ch)
+		padding := strings.Repeat(" ", layout.tasksWidth-lipgloss.Width(text))
+		if len(metadata) > 0 {
+			metadata[len(metadata)-1] += " ·"
+		}
+		metadata = append(metadata, padding+m.theme.Styles.Help.Render(text))
+	}
+	if layout.diagnosticWidth > 0 {
+		text := truncateIndexText(activeDiagnosticText(ch), layout.diagnosticWidth)
+		metadata = append(metadata, m.theme.Styles.Error.Render(text)+strings.Repeat(" ", layout.diagnosticWidth-lipgloss.Width(text)))
+	}
+	if len(metadata) > 0 {
+		row += " " + strings.Join(metadata, " ")
+	}
+	return row
 }
 
 func truncateIndexText(text string, width int) string {
