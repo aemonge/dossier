@@ -134,51 +134,8 @@ func (m Model) handleMouseClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) clickIndexItem(idx int) (tea.Model, tea.Cmd) {
-	item := m.index.Items[idx]
-	m.renderCache = make(map[Tab]string)
-	switch item.kind {
-	case indexKindActive:
-		m.changeIdx = item.idx
-		m.mode = ModeNormal
-		m.tab = m.defaultTab()
-		m.loadTaskItems()
-		m.vp.SetHeight(m.contentHeight())
-		return m, m.loadViewport()
-
-	case indexKindArchived:
-		m.index.ArchiveCursor = item.idx
-		m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
-		m.mode = ModeViewingArchive
-		m.vp.SetHeight(m.contentHeight())
-		return m, m.loadViewport()
-
-	case indexKindSpec:
-		m.index.ExpandedSpecs[item.idx] = !m.index.ExpandedSpecs[item.idx]
-		m.buildIndexItems()
-		m.index.Cursor = 0
-		for i, it := range m.index.Items {
-			if it.kind == indexKindSpec && it.idx == item.idx {
-				m.index.Cursor = i
-				break
-			}
-		}
-		if m.index.Cursor >= len(m.index.Items) {
-			m.index.Cursor = max(0, len(m.index.Items)-1)
-		}
-		m.refreshIndexViewport()
-		return m, nil
-
-	case indexKindRequirement:
-		m.specViewer.Cursor = item.idx
-		m.specViewer.JumpTarget = m.projectSpecs[item.idx].RequirementNames[item.reqIdx]
-		m.specViewer.FocusMode = true
-		m.specViewer.ReqCursor = item.reqIdx
-		m.mode = ModeViewingSpec
-		m.vp.SetHeight(m.contentHeight())
-		return m, m.loadViewport()
-
-	case indexKindSection:
+	if idx < 0 || idx >= len(m.index.Items) {
 		return m, nil
 	}
-	return m, nil
+	return m.primaryIndexItem(m.index.Items[idx])
 }

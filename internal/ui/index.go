@@ -184,34 +184,62 @@ func (m *Model) visibleItemCount() int {
 }
 
 func (m *Model) matchesFilter(item indexItem, lowerQuery string) bool {
+	contains := func(values ...string) bool {
+		for _, value := range values {
+			if strings.Contains(strings.ToLower(value), lowerQuery) {
+				return true
+			}
+		}
+		return false
+	}
 	switch item.kind {
 	case indexKindSection:
 		return true
 	case indexKindActive:
-		if item.idx < len(m.project.Changes) {
-			return strings.Contains(strings.ToLower(m.project.Changes[item.idx].Name), lowerQuery)
+		if m.project != nil && item.idx < len(m.project.Changes) {
+			change := m.project.Changes[item.idx]
+			return contains(change.Name, change.Schema)
 		}
 	case indexKindArchived:
 		if item.idx < len(m.index.ArchiveChanges) {
-			return strings.Contains(strings.ToLower(m.index.ArchiveChanges[item.idx].Name), lowerQuery)
+			change := m.index.ArchiveChanges[item.idx]
+			return contains(change.Name, change.Schema)
+		}
+	case indexKindArtifact:
+		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
+			artifact := change.Artifacts[item.artifactIdx]
+			return contains(artifact.ID, artifact.OutputPattern, strings.Join(artifact.Requires, " "))
+		}
+	case indexKindArtifactOutput:
+		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
+			artifact := change.Artifacts[item.artifactIdx]
+			if item.outputIdx < len(artifact.Outputs) {
+				output := artifact.Outputs[item.outputIdx]
+				return contains(output.DisplayName, output.RelativePath)
+			}
 		}
 	case indexKindSpec:
 		if item.idx < len(m.projectSpecs) {
-			return strings.Contains(strings.ToLower(m.projectSpecs[item.idx].Name), lowerQuery)
+			return contains(m.projectSpecs[item.idx].Name)
 		}
 	case indexKindRequirement:
 		if item.idx < len(m.projectSpecs) && item.reqIdx < len(m.projectSpecs[item.idx].RequirementNames) {
-			return strings.Contains(strings.ToLower(m.projectSpecs[item.idx].RequirementNames[item.reqIdx]), lowerQuery)
+			return contains(m.projectSpecs[item.idx].RequirementNames[item.reqIdx])
 		}
 	}
 	return false
 }
 
 func (m *Model) isItemVisible(idx int) bool {
-	if m.index.FilterText == "" {
+	if m.index.FilterText == "" || m.index.FilterIndices == nil {
 		return true
 	}
-	return m.matchesFilter(m.index.Items[idx], strings.ToLower(m.index.FilterText))
+	for _, visibleIndex := range m.index.FilterIndices {
+		if visibleIndex == idx {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) applyFilter() {
@@ -220,15 +248,50 @@ func (m *Model) applyFilter() {
 		return
 	}
 	lower := strings.ToLower(m.index.FilterText)
+	included := make(map[int]bool)
+	for index, item := range m.index.Items {
+		if !m.matchesFilter(item, lower) {
+			continue
+		}
+		included[index] = true
+		for _, ancestor := range indexIdentityAncestors(item.identity) {
+			if ancestorIndex := indexItemByIdentity(m.index.Items, ancestor); ancestorIndex >= 0 {
+				included[ancestorIndex] = true
+			}
+		}
+	}
 	m.index.FilterIndices = nil
-	for i := range m.index.Items {
-		if m.matchesFilter(m.index.Items[i], lower) {
-			m.index.FilterIndices = append(m.index.FilterIndices, i)
+	for index := range m.index.Items {
+		if included[index] {
+			m.index.FilterIndices = append(m.index.FilterIndices, index)
 		}
 	}
 	if m.index.Cursor >= len(m.index.FilterIndices) {
 		m.index.Cursor = 0
 	}
+}
+
+func indexIdentityAncestors(identity string) []string {
+	var ancestors []string
+	switch {
+	case strings.HasPrefix(identity, "active:"):
+		ancestors = append(ancestors, "section:active-work")
+	case strings.HasPrefix(identity, "archive:"):
+		ancestors = append(ancestors, "section:history")
+	case strings.HasPrefix(identity, "canonical-spec:"):
+		ancestors = append(ancestors, "section:canonical-specs")
+	}
+	if outputAt := strings.Index(identity, ":output:"); outputAt >= 0 {
+		identity = identity[:outputAt]
+		ancestors = append(ancestors, identity)
+	}
+	if artifactAt := strings.Index(identity, ":artifact:"); artifactAt >= 0 {
+		ancestors = append(ancestors, identity[:artifactAt])
+	}
+	if requirementAt := strings.Index(identity, ":requirement:"); requirementAt >= 0 {
+		ancestors = append(ancestors, identity[:requirementAt])
+	}
+	return ancestors
 }
 
 func specSuffix(name string) string {
@@ -267,7 +330,7 @@ func (m *Model) buildIndexItems() {
 	m.index.Items = append(m.index.Items, indexItem{
 		kind: indexKindSection, idx: sectionActive, identity: "section:active-work",
 	})
-	if !m.index.CollapsedSections[sectionActive] && m.project != nil {
+	if (!m.index.CollapsedSections[sectionActive] || m.index.FilterText != "") && m.project != nil {
 		for i := range m.project.Changes {
 			m.appendChangeHierarchy(m.project.Changes[i], i, false)
 		}
@@ -276,13 +339,13 @@ func (m *Model) buildIndexItems() {
 	m.index.Items = append(m.index.Items, indexItem{
 		kind: indexKindSection, idx: sectionSpecs, identity: "section:canonical-specs",
 	})
-	if !m.index.CollapsedSections[sectionSpecs] {
+	if !m.index.CollapsedSections[sectionSpecs] || m.index.FilterText != "" {
 		for _, i := range m.index.Order {
 			ps := m.projectSpecs[i]
 			m.index.Items = append(m.index.Items, indexItem{
 				kind: indexKindSpec, idx: i, identity: "canonical-spec:" + ps.Name, depth: 1,
 			})
-			if m.index.ExpandedSpecs[i] {
+			if m.index.ExpandedSpecs[i] || m.index.FilterText != "" {
 				for r, requirement := range ps.RequirementNames {
 					m.index.Items = append(m.index.Items, indexItem{
 						kind: indexKindRequirement, idx: i, reqIdx: r,
@@ -297,7 +360,7 @@ func (m *Model) buildIndexItems() {
 	m.index.Items = append(m.index.Items, indexItem{
 		kind: indexKindSection, idx: sectionArchived, identity: "section:history",
 	})
-	if !m.index.CollapsedSections[sectionArchived] {
+	if !m.index.CollapsedSections[sectionArchived] || m.index.FilterText != "" {
 		for i := range m.index.ArchiveChanges {
 			m.appendChangeHierarchy(m.index.ArchiveChanges[i], i, true)
 		}
@@ -315,7 +378,7 @@ func (m *Model) appendChangeHierarchy(change openspec.Change, changeIdx int, arc
 	m.index.Items = append(m.index.Items, indexItem{
 		kind: kind, idx: changeIdx, archived: archived, identity: changeIdentity, depth: 1,
 	})
-	if !m.index.ExpandedChanges[changeIdentity] {
+	if !m.index.ExpandedChanges[changeIdentity] && m.index.FilterText == "" {
 		return
 	}
 	for artifactIdx, artifact := range change.Artifacts {
@@ -324,7 +387,7 @@ func (m *Model) appendChangeHierarchy(change openspec.Change, changeIdx int, arc
 			kind: indexKindArtifact, idx: changeIdx, artifactIdx: artifactIdx,
 			archived: archived, identity: artifactIdentity, depth: 2,
 		})
-		if len(artifact.Outputs) < 2 || !m.index.ExpandedArtifacts[artifactIdentity] {
+		if len(artifact.Outputs) < 2 || (!m.index.ExpandedArtifacts[artifactIdentity] && m.index.FilterText == "") {
 			continue
 		}
 		for outputIdx, output := range artifact.Outputs {
@@ -861,6 +924,100 @@ func sameStrings(a, b []string) bool {
 	return true
 }
 
+func (m Model) selectedIndexItem() (indexItem, bool) {
+	if m.visibleItemCount() == 0 || m.index.Cursor < 0 || m.index.Cursor >= m.visibleItemCount() {
+		return indexItem{}, false
+	}
+	return m.index.Items[m.visibleItemIdx(m.index.Cursor)], true
+}
+
+func (m Model) indexItemExpandable(item indexItem) bool {
+	switch item.kind {
+	case indexKindSection:
+		return true
+	case indexKindActive:
+		return m.project != nil && item.idx < len(m.project.Changes) && len(m.project.Changes[item.idx].Artifacts) > 0
+	case indexKindArchived:
+		return item.idx < len(m.index.ArchiveChanges) && len(m.index.ArchiveChanges[item.idx].Artifacts) > 0
+	case indexKindArtifact:
+		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
+			return len(change.Artifacts[item.artifactIdx].Outputs) > 1
+		}
+	case indexKindSpec:
+		return item.idx < len(m.projectSpecs) && len(m.projectSpecs[item.idx].RequirementNames) > 0
+	}
+	return false
+}
+
+func (m Model) primaryIndexItem(item indexItem) (tea.Model, tea.Cmd) {
+	if m.indexItemExpandable(item) {
+		return m.toggleIndexItem(item)
+	}
+	return m.inspectIndexItem(item)
+}
+
+func (m Model) toggleIndexItem(item indexItem) (tea.Model, tea.Cmd) {
+	switch item.kind {
+	case indexKindSection:
+		m.index.CollapsedSections[item.idx] = !m.index.CollapsedSections[item.idx]
+	case indexKindActive, indexKindArchived:
+		m.index.ExpandedChanges[item.identity] = !m.index.ExpandedChanges[item.identity]
+	case indexKindArtifact:
+		m.index.ExpandedArtifacts[item.identity] = !m.index.ExpandedArtifacts[item.identity]
+	case indexKindSpec:
+		m.index.ExpandedSpecs[item.idx] = !m.index.ExpandedSpecs[item.idx]
+	default:
+		return m, nil
+	}
+	m.rebuildIndexPreservingCursor()
+	m.refreshIndexViewport()
+	return m, nil
+}
+
+func (m Model) inspectIndexItem(item indexItem) (tea.Model, tea.Cmd) {
+	m.renderCache = make(map[Tab]string)
+	switch item.kind {
+	case indexKindActive:
+		m.changeIdx = item.idx
+		m.mode = ModeNormal
+		m.tab = m.defaultTab()
+		m.loadTaskItems()
+		return m.commitStateChange()
+	case indexKindArchived:
+		m.index.ArchiveCursor = item.idx
+		m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
+		m.mode = ModeViewingArchive
+		return m.commitStateChange()
+	case indexKindArtifact, indexKindArtifactOutput:
+		if item.archived {
+			m.index.ArchiveCursor = item.idx
+			m.mode = ModeViewingArchive
+			m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
+		} else {
+			m.changeIdx = item.idx
+			m.mode = ModeNormal
+			m.tab = m.defaultTab()
+			m.loadTaskItems()
+		}
+		return m.commitStateChange()
+	case indexKindSpec:
+		m.specViewer.Cursor = item.idx
+		m.specViewer.JumpTarget = ""
+		m.specViewer.FocusMode = false
+		m.specViewer.ReqCursor = 0
+		m.mode = ModeViewingSpec
+		return m.commitStateChange()
+	case indexKindRequirement:
+		m.specViewer.Cursor = item.idx
+		m.specViewer.JumpTarget = m.projectSpecs[item.idx].RequirementNames[item.reqIdx]
+		m.specViewer.FocusMode = true
+		m.specViewer.ReqCursor = item.reqIdx
+		m.mode = ModeViewingSpec
+		return m.commitStateChange()
+	}
+	return m, nil
+}
+
 func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	keyMap := m.effectiveKeyMap()
 	if m.index.FilterActive {
@@ -930,96 +1087,19 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		m.refreshIndexViewport()
 
+	case matchesKey(msg, keyMap.Index.Inspect):
+		if item, ok := m.selectedIndexItem(); ok {
+			return m.inspectIndexItem(item)
+		}
+
 	case matchesKey(msg, keyMap.Index.Open):
-		if m.visibleItemCount() > 0 {
-			item := m.index.Items[m.visibleItemIdx(m.index.Cursor)]
-			m.renderCache = make(map[Tab]string)
-			if item.kind == indexKindActive {
-				m.changeIdx = item.idx
-				m.mode = ModeNormal
-				m.tab = m.defaultTab()
-				m.loadTaskItems()
-				return m.commitStateChange()
-			}
-			if item.kind == indexKindSpec {
-				m.specViewer.Cursor = item.idx
-				m.specViewer.JumpTarget = ""
-				m.specViewer.FocusMode = false
-				m.specViewer.ReqCursor = 0
-				m.mode = ModeViewingSpec
-				return m.commitStateChange()
-			}
-			if item.kind == indexKindRequirement {
-				m.specViewer.Cursor = item.idx
-				m.specViewer.JumpTarget = m.projectSpecs[item.idx].RequirementNames[item.reqIdx]
-				m.specViewer.FocusMode = true
-				m.specViewer.ReqCursor = item.reqIdx
-				m.mode = ModeViewingSpec
-				return m.commitStateChange()
-			}
-			if item.kind == indexKindSection {
-				return m, nil
-			}
-			m.index.ArchiveCursor = item.idx
-			m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
-			m.mode = ModeViewingArchive
-			return m.commitStateChange()
+		if item, ok := m.selectedIndexItem(); ok {
+			return m.primaryIndexItem(item)
 		}
 
 	case matchesKey(msg, keyMap.Index.Toggle):
-		if m.visibleItemCount() > 0 {
-			item := m.index.Items[m.visibleItemIdx(m.index.Cursor)]
-			if item.kind == indexKindSection {
-				sectionIdx := item.idx
-				m.index.CollapsedSections[sectionIdx] = !m.index.CollapsedSections[sectionIdx]
-				m.buildIndexItems()
-				m.applyFilter()
-				m.index.Cursor = 0
-				if m.index.FilterIndices != nil {
-					for i, idx := range m.index.FilterIndices {
-						if m.index.Items[idx].kind == indexKindSection && m.index.Items[idx].idx == sectionIdx {
-							m.index.Cursor = i
-							break
-						}
-					}
-				} else {
-					for i, it := range m.index.Items {
-						if it.kind == indexKindSection && it.idx == sectionIdx {
-							m.index.Cursor = i
-							break
-						}
-					}
-				}
-				if m.index.Cursor >= m.visibleItemCount() {
-					m.index.Cursor = max(0, m.visibleItemCount()-1)
-				}
-				m.refreshIndexViewport()
-			} else if item.kind == indexKindSpec {
-				specIdx := item.idx
-				m.index.ExpandedSpecs[specIdx] = !m.index.ExpandedSpecs[specIdx]
-				m.buildIndexItems()
-				m.applyFilter()
-				m.index.Cursor = 0
-				if m.index.FilterIndices != nil {
-					for i, idx := range m.index.FilterIndices {
-						if m.index.Items[idx].kind == indexKindSpec && m.index.Items[idx].idx == specIdx {
-							m.index.Cursor = i
-							break
-						}
-					}
-				} else {
-					for i, it := range m.index.Items {
-						if it.kind == indexKindSpec && it.idx == specIdx {
-							m.index.Cursor = i
-							break
-						}
-					}
-				}
-				if m.index.Cursor >= m.visibleItemCount() {
-					m.index.Cursor = max(0, m.visibleItemCount()-1)
-				}
-				m.refreshIndexViewport()
-			}
+		if item, ok := m.selectedIndexItem(); ok && m.indexItemExpandable(item) {
+			return m.toggleIndexItem(item)
 		}
 
 	case matchesKey(msg, keyMap.Index.Sort):

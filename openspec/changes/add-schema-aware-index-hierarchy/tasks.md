@@ -36,12 +36,12 @@
 
 ## 6. Expansion, filtering, mouse, and contextual navigation
 
-- [ ] 6.1 Add failing tests for Enter/Space expansion of sections, changes, multi-output artifacts, canonical specs, and archives, plus leaf no-op/inspect behavior (estimate: 5 hours)
-- [ ] 6.2 Implement identity-keyed expansion state and shared primary/toggle/inspect dispatch (estimate: 6 hours)
-- [ ] 6.3 Add filtering tests for schema names, artifact IDs, output paths, canonical specs, requirements, ancestor revelation, and restoration of pre-filter collapse (estimate: 5 hours)
-- [ ] 6.4 Implement hierarchy-aware filtering that retains ownership ancestry without mutating stored expansion (estimate: 6 hours)
-- [ ] 6.5 Replace line-mirroring mouse lookup with hierarchy render metadata or update both paths together; test two-phase click for every row capability (estimate: 6 hours)
-- [ ] 6.6 Implement row-capability help for expandable, inspectable, degraded, read-only, and leaf states (estimate: 4 hours)
+- [x] 6.1 Add failing tests for Enter/Space expansion of sections, changes, multi-output artifacts, canonical specs, and archives, plus leaf no-op/inspect behavior (estimate: 5 hours)
+- [x] 6.2 Implement identity-keyed expansion state and shared primary/toggle/inspect dispatch (estimate: 6 hours)
+- [x] 6.3 Add filtering tests for schema names, artifact IDs, output paths, canonical specs, requirements, ancestor revelation, and restoration of pre-filter collapse (estimate: 5 hours)
+- [x] 6.4 Implement hierarchy-aware filtering that retains ownership ancestry without mutating stored expansion (estimate: 6 hours)
+- [x] 6.5 Keep line-mirroring mouse lookup synchronized with one-row hierarchy rendering and route two-phase clicks through shared primary dispatch (estimate: 6 hours)
+- [x] 6.6 Implement row-capability help for expandable, inspectable, degraded, read-only, and leaf states (estimate: 4 hours)
 
 ## 7. Dynamic artifact viewer
 

@@ -96,14 +96,15 @@ type KeyViewer struct {
 }
 
 type KeyIndex struct {
-	Filter []string `toml:"filter"`
-	Info   []string `toml:"info"`
-	Back   []string `toml:"back"`
-	Down   []string `toml:"down"`
-	Up     []string `toml:"up"`
-	Open   []string `toml:"open"`
-	Toggle []string `toml:"toggle"`
-	Sort   []string `toml:"sort"`
+	Filter  []string `toml:"filter"`
+	Info    []string `toml:"info"`
+	Inspect []string `toml:"inspect"`
+	Back    []string `toml:"back"`
+	Down    []string `toml:"down"`
+	Up      []string `toml:"up"`
+	Open    []string `toml:"open"`
+	Toggle  []string `toml:"toggle"`
+	Sort    []string `toml:"sort"`
 }
 
 type KeyFilter struct {
@@ -299,8 +300,8 @@ func nvimKeys() KeyConfig {
 			ToggleTask: []string{"space"}, Open: []string{"e"},
 		},
 		Index: KeyIndex{
-			Filter: []string{"/"}, Info: []string{"?"}, Back: []string{"q", "Q", "esc"}, Down: []string{"j", "down"},
-			Up: []string{"k", "up"}, Open: []string{"l", "enter"}, Toggle: []string{"space"}, Sort: []string{"s"},
+			Filter: []string{"/"}, Info: []string{"?"}, Inspect: []string{"i"}, Back: []string{"q", "Q", "esc"},
+			Down: []string{"j", "down"}, Up: []string{"k", "up"}, Open: []string{"enter"}, Toggle: []string{"space"}, Sort: []string{"s"},
 		},
 		Filter: KeyFilter{Cancel: []string{"esc"}, Accept: []string{"enter"}, Backspace: []string{"backspace"}},
 		Spec: KeySpec{

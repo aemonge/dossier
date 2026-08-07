@@ -207,10 +207,23 @@ func (m *Model) renderHelpBar() string {
 		if m.index.SortBySuffix {
 			sortAction = "sort by name"
 		}
-		text := pairedKeyLabel(keyMap.Index.Down, keyMap.Index.Up) + ": navigate  " +
-			primaryKeyLabel(keyMap.Index.Open) + ": open  " + primaryKeyLabel(keyMap.Index.Toggle) + ": toggle  click: select  " +
-			primaryKeyLabel(keyMap.Index.Sort) + ": " + sortAction + "  " + primaryKeyLabel(keyMap.Index.Info) + ": info  " +
-			primaryKeyLabel(keyMap.Index.Back) + ": quit"
+		actionHelp := ""
+		if item, ok := m.selectedIndexItem(); ok {
+			if m.indexItemExpandable(item) {
+				actionHelp = combinedKeyLabel(keyMap.Index.Open, keyMap.Index.Toggle) + ": toggle"
+				if item.kind != indexKindSection {
+					actionHelp += "  " + primaryKeyLabel(keyMap.Index.Inspect) + ": inspect"
+				}
+			} else if item.kind != indexKindSection {
+				actionHelp = combinedKeyLabel(keyMap.Index.Inspect, keyMap.Index.Open) + ": inspect"
+			}
+		}
+		text := pairedKeyLabel(keyMap.Index.Down, keyMap.Index.Up) + ": navigate"
+		if actionHelp != "" {
+			text += "  " + actionHelp
+		}
+		text += "  click: select  " + primaryKeyLabel(keyMap.Index.Sort) + ": " + sortAction + "  " +
+			primaryKeyLabel(keyMap.Index.Info) + ": info  " + primaryKeyLabel(keyMap.Index.Back) + ": quit"
 		if m.index.FilterText != "" {
 			text += "  [" + primaryKeyLabel(keyMap.Index.Filter) + m.index.FilterText + "]"
 		}

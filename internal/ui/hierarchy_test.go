@@ -4,7 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/fselich/dossier/internal/openspec"
+	"github.com/fselich/dossier/internal/settings"
 )
 
 func hierarchyChange(name, schema string) openspec.Change {
@@ -165,6 +167,95 @@ func TestRenderSchemaAwareHierarchy(t *testing.T) {
 		if !strings.Contains(content, expected) {
 			t.Errorf("expected rendered hierarchy to contain %q:\n%s", expected, content)
 		}
+	}
+}
+
+func TestHierarchyPrimaryToggleAndInspect(t *testing.T) {
+	m := Model{
+		mode:    ModeIndex,
+		project: &openspec.Project{Changes: []openspec.Change{hierarchyChange("fix-cache", "bugfix")}},
+		keyMap:  settings.DefaultKeys(),
+	}
+	m.buildIndexItems()
+	m.index.Cursor = indexItemByIdentity(m.index.Items, "active:fix-cache")
+
+	result, _ := m.updateIndex(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = result.(Model)
+	if !m.index.ExpandedChanges["active:fix-cache"] || m.mode != ModeIndex {
+		t.Fatal("expected Enter to expand change without leaving index")
+	}
+
+	result, _ = m.updateIndex(tea.KeyPressMsg{Text: "i"})
+	m = result.(Model)
+	if m.mode != ModeNormal {
+		t.Fatalf("expected i to inspect active change, got mode %d", m.mode)
+	}
+}
+
+func TestHierarchyClickUsesPrimaryAction(t *testing.T) {
+	m := Model{
+		mode:    ModeIndex,
+		project: &openspec.Project{Changes: []openspec.Change{hierarchyChange("fix-cache", "bugfix")}},
+		keyMap:  settings.DefaultKeys(),
+	}
+	m.buildIndexItems()
+	index := indexItemByIdentity(m.index.Items, "active:fix-cache")
+	result, _ := m.clickIndexItem(index)
+	m = result.(Model)
+	if !m.index.ExpandedChanges["active:fix-cache"] || m.mode != ModeIndex {
+		t.Fatal("expected selected change click to expand through primary action")
+	}
+}
+
+func TestHierarchyContextualHelp(t *testing.T) {
+	m := Model{
+		mode:    ModeIndex,
+		project: &openspec.Project{Changes: []openspec.Change{hierarchyChange("fix-cache", "bugfix")}},
+		keyMap:  settings.DefaultKeys(),
+	}
+	m.buildIndexItems()
+	m.index.Cursor = indexItemByIdentity(m.index.Items, "active:fix-cache")
+	help := m.renderHelpBar()
+	if !strings.Contains(help, "Enter/Space: toggle") || !strings.Contains(help, "i: inspect") {
+		t.Fatalf("expected expandable contextual help, got %q", help)
+	}
+}
+
+func TestHierarchyFilterRevealsMatchingDescendantAndAncestors(t *testing.T) {
+	change := hierarchyChange("fix-cache", "bugfix")
+	change.Artifacts = append(change.Artifacts, openspec.ChangeArtifact{
+		ID: "diagnosis", Status: openspec.ArtifactStatusDone, Source: openspec.ArtifactSourceStatus,
+		Outputs: []openspec.ArtifactOutput{{RelativePath: "diagnosis.md", DisplayName: "diagnosis", Present: true}},
+	})
+	m := &Model{
+		project: &openspec.Project{Changes: []openspec.Change{change}},
+		index: indexState{
+			ExpandedChanges:   make(map[string]bool),
+			ExpandedArtifacts: make(map[string]bool),
+			ExpandedSpecs:     make(map[int]bool),
+			FilterText:        "diagnosis",
+		},
+	}
+	m.buildIndexItems()
+	m.applyFilter()
+	visible := make([]string, 0, len(m.index.FilterIndices))
+	for _, rawIndex := range m.index.FilterIndices {
+		visible = append(visible, m.index.Items[rawIndex].identity)
+	}
+	for _, expected := range []string{"section:active-work", "active:fix-cache", "active:fix-cache:artifact:diagnosis"} {
+		found := false
+		for _, identity := range visible {
+			if identity == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("expected filtered hierarchy ancestor %q, got %v", expected, visible)
+		}
+	}
+	if m.index.ExpandedChanges["active:fix-cache"] {
+		t.Fatal("filter must not overwrite stored expansion state")
 	}
 }
 
