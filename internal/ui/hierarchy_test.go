@@ -181,12 +181,48 @@ func TestRenderHierarchyDisambiguatesAndAlignsPlanningStatus(t *testing.T) {
 	if !strings.Contains(changeLine, m.theme.Styles.ProgressDone.Render("[spec-driven]")) {
 		t.Fatalf("expected colored schema badge, got %q", changeLine)
 	}
-	if !strings.Contains(artifactLine, m.theme.Styles.ProgressComplete.Render("[authored]")) {
-		t.Fatalf("expected authored planning-document badge, got %q", artifactLine)
+	authoredBadge := m.theme.Styles.ProgressComplete.Bold(true).Reverse(true).Render("[authored]")
+	if !strings.Contains(artifactLine, authoredBadge) {
+		t.Fatalf("expected high-contrast authored planning-document badge, got %q", artifactLine)
 	}
 	for name, line := range map[string]string{"change": changeLine, "artifact": artifactLine} {
 		if got := lipgloss.Width(line); got != m.width-2 {
 			t.Errorf("%s row width = %d, want %d: %q", name, got, m.width-2, line)
+		}
+	}
+}
+
+func TestRenderArtifactRowsAlignDependencyColumn(t *testing.T) {
+	change := hierarchyChange("add-custom-themes", "spec-driven")
+	change.Artifacts = append(change.Artifacts, openspec.ChangeArtifact{
+		ID: "design", Status: openspec.ArtifactStatusDone, Requires: []string{"proposal"}, Source: openspec.ArtifactSourceStatus,
+	})
+	m := &Model{
+		project: &openspec.Project{Changes: []openspec.Change{change}},
+		index: indexState{
+			ExpandedSpecs:     make(map[int]bool),
+			ExpandedChanges:   map[string]bool{"active:add-custom-themes": true},
+			ExpandedArtifacts: make(map[string]bool),
+		},
+		theme: Theme{Styles: BuildStyles(DarkColors)},
+		width: 108,
+	}
+	m.buildIndexItems()
+	content, _ := m.renderIndexContent()
+	var dependencyColumns []int
+	stripANSI := regexp.MustCompile(`\x1b\[[0-9;:]*m`)
+	for _, line := range strings.Split(content, "\n") {
+		plain := stripANSI.ReplaceAllString(line, "")
+		if strings.Contains(plain, "requires ") {
+			dependencyColumns = append(dependencyColumns, strings.Index(plain, "requires "))
+		}
+	}
+	if len(dependencyColumns) < 3 {
+		t.Fatalf("expected at least three dependency rows, got %v:\n%s", dependencyColumns, content)
+	}
+	for _, column := range dependencyColumns[1:] {
+		if column != dependencyColumns[0] {
+			t.Fatalf("expected dependencies in one stable column, got %v:\n%s", dependencyColumns, content)
 		}
 	}
 }

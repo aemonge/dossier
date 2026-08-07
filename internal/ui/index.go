@@ -465,6 +465,7 @@ func (m *Model) isCursorAt(rawIdx int) bool {
 func (m *Model) renderIndexContent() (string, int) {
 	contentWidth := m.width - 2
 	activeLayout := m.buildActiveRowLayout(contentWidth)
+	artifactIDWidth := m.buildArtifactIDWidth()
 	var sb strings.Builder
 	line := 0
 	cursorLine := 0
@@ -574,7 +575,7 @@ func (m *Model) renderIndexContent() (string, int) {
 				sb.WriteString(m.renderActiveItem(ch, childCursor, activeLayout) + "\n")
 			case indexKindArtifact:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
-					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor, contentWidth) + "\n")
+					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor, contentWidth, artifactIDWidth) + "\n")
 				}
 			case indexKindArtifactOutput:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
@@ -847,18 +848,37 @@ func (m *Model) indexItemChange(item indexItem) (openspec.Change, bool) {
 	return openspec.Change{}, false
 }
 
-func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool, contentWidth int) string {
+func (m *Model) buildArtifactIDWidth() int {
+	width := 0
+	if m.project != nil {
+		for _, change := range m.project.Changes {
+			for _, artifact := range change.Artifacts {
+				width = max(width, lipgloss.Width(artifact.ID))
+			}
+		}
+	}
+	for _, change := range m.index.ArchiveChanges {
+		for _, artifact := range change.Artifacts {
+			width = max(width, lipgloss.Width(artifact.ID))
+		}
+	}
+	return min(width, 24)
+}
+
+func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool, contentWidth, idWidth int) string {
 	cursorMark := "    "
 	if cursor {
 		cursorMark = "  " + m.theme.Styles.ProgressDone.Render("▶") + " "
 	}
-	name := m.theme.Styles.BaseText.Render(artifact.ID)
+	id := truncateIndexText(artifact.ID, idWidth)
+	name := m.theme.Styles.BaseText.Render(id)
 	if cursor {
-		name = m.theme.Styles.IndexActive.Render(artifact.ID)
+		name = m.theme.Styles.IndexActive.Render(id)
 	}
-	left := cursorMark + name
+	left := cursorMark + name + strings.Repeat(" ", max(0, idWidth-lipgloss.Width(id)))
 	if len(artifact.Requires) > 0 {
-		left += "  " + m.theme.Styles.Help.Render("requires "+strings.Join(artifact.Requires, ", "))
+		left += "  " + m.theme.Styles.TaskCodeCyan.Render("requires") + " " +
+			m.theme.Styles.Help.Render(strings.Join(artifact.Requires, ", "))
 	}
 	if len(artifact.Outputs) > 1 && !m.index.ExpandedArtifacts[item.identity] {
 		left += m.theme.Styles.Help.Render(" …")
@@ -867,18 +887,21 @@ func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexI
 }
 
 func (m *Model) renderArtifactStatusBadge(artifact openspec.ChangeArtifact) string {
+	badge := func(style lipgloss.Style, label string) string {
+		return style.Bold(true).Reverse(true).Render("[" + label + "]")
+	}
 	switch artifact.Status {
 	case openspec.ArtifactStatusDone:
-		return m.theme.Styles.ProgressComplete.Render("[authored]")
+		return badge(m.theme.Styles.ProgressComplete, "authored")
 	case openspec.ArtifactStatusReady:
-		return m.theme.Styles.Section.Render("[ready to author]")
+		return badge(m.theme.Styles.Section, "ready to author")
 	case openspec.ArtifactStatusBlocked:
-		return m.theme.Styles.Error.Render("[blocked]")
+		return badge(m.theme.Styles.Error, "blocked")
 	}
 	if artifact.Source == openspec.ArtifactSourceDiscovered {
-		return m.theme.Styles.ProgressDone.Render("[discovered]")
+		return badge(m.theme.Styles.ProgressDone, "discovered")
 	}
-	return m.theme.Styles.Help.Render("[unknown]")
+	return badge(m.theme.Styles.Help, "unknown")
 }
 
 func (m *Model) renderArtifactOutputItem(output openspec.ArtifactOutput, cursor bool) string {

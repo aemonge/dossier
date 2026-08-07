@@ -20,7 +20,7 @@ The TUI SHALL implement `ModeIndex` as a project hierarchy with three top-level 
 - **THEN** the hierarchy and all remaining viewport whitespace use that background
 
 ### Requirement: Formato de cambios activos en el índice
-Each active change SHALL be displayed as an expandable work row with its name, selected schema, planning-artifact lifecycle summary, and implementation task progress when available. The schema SHALL render as a colored badge separate from the change name, and right-side metadata SHALL remain aligned without prematurely truncating the name. Expanding the change SHALL reveal schema-ordered artifact rows. Artifact rows SHALL translate reported ready/blocked/done state into unambiguous planning-document labels, color those status badges, right-align them, and show prerequisite metadata when present; multi-file outputs SHALL expand to file rows.
+Each active change SHALL be displayed as an expandable work row with its name, selected schema, planning-artifact lifecycle summary, and implementation task progress when available. The schema SHALL render as a colored badge separate from the change name, and right-side metadata SHALL remain aligned without prematurely truncating the name. Expanding the change SHALL reveal schema-ordered artifact rows. Artifact rows SHALL translate reported ready/blocked/done state into unambiguous planning-document labels, render those status badges as high-contrast colored chips, and right-align them. Artifact identifiers and prerequisite metadata SHALL use stable shared columns across visible rows; multi-file outputs SHALL expand to file rows.
 
 #### Scenario: Feature work row
 - **WHEN** an active change `add-export` uses schema `feature` with three of four artifacts done
