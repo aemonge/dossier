@@ -20,11 +20,15 @@ The TUI SHALL implement `ModeIndex` as a project hierarchy with three top-level 
 - **THEN** the hierarchy and all remaining viewport whitespace use that background
 
 ### Requirement: Formato de cambios activos en el índice
-Each active change SHALL be displayed as an expandable work row with its name, selected schema, artifact completion summary, and task progress when available. Expanding it SHALL reveal schema-ordered artifact rows. Artifact rows SHALL display reported ready/blocked/done state and prerequisite metadata when present; multi-file outputs SHALL expand to file rows.
+Each active change SHALL be displayed as an expandable work row with its name, selected schema, planning-artifact lifecycle summary, and implementation task progress when available. The schema SHALL render as a colored badge separate from the change name, and right-side metadata SHALL remain aligned without prematurely truncating the name. Expanding the change SHALL reveal schema-ordered artifact rows. Artifact rows SHALL translate reported ready/blocked/done state into unambiguous planning-document labels, color those status badges, right-align them, and show prerequisite metadata when present; multi-file outputs SHALL expand to file rows.
 
 #### Scenario: Feature work row
 - **WHEN** an active change `add-export` uses schema `feature` with three of four artifacts done
-- **THEN** its row identifies `add-export`, schema `feature`, and artifact progress `3/4`
+- **THEN** its row identifies `add-export`, schema `feature`, and planning-artifact progress `3/4` separately from implementation task progress
+
+#### Scenario: Authored planning artifact is not implementation completion
+- **WHEN** OpenSpec reports the tasks artifact as `done` while its Markdown checklist has incomplete tasks
+- **THEN** the artifact row identifies the planning document as authored and the change row separately reports incomplete implementation task progress
 
 #### Scenario: Bugfix children follow schema order
 - **WHEN** a bugfix schema reports proposal, reproduction, diagnosis, specs, and tasks

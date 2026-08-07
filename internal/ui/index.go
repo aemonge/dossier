@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/fselich/dossier/internal/openspec"
 )
 
@@ -572,7 +573,7 @@ func (m *Model) renderIndexContent() (string, int) {
 				sb.WriteString(m.renderActiveItem(ch, childCursor, contentWidth) + "\n")
 			case indexKindArtifact:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
-					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor) + "\n")
+					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor, contentWidth) + "\n")
 				}
 			case indexKindArtifactOutput:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
@@ -655,28 +656,10 @@ func (m *Model) skipToNextSection(start int) int {
 }
 
 func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, contentWidth int) string {
-	done, total := taskCounts(ch)
-
+	doneTasks, totalTasks := taskCounts(ch)
 	cursorMark := "  "
 	if cursor {
 		cursorMark = m.theme.Styles.ProgressDone.Render("▶") + " "
-	}
-
-	const nameColWidth = 32
-	name := ch.Name
-	if ch.Schema != "" {
-		name += " [" + ch.Schema + "]"
-	}
-	if len(name) > nameColWidth {
-		name = name[:nameColWidth-1] + "."
-	}
-	paddedName := name + strings.Repeat(" ", nameColWidth-len(name))
-
-	var renderedName string
-	if cursor {
-		renderedName = m.theme.Styles.IndexActive.Render(paddedName)
-	} else {
-		renderedName = m.theme.Styles.BaseText.Render(paddedName)
 	}
 
 	doneArtifacts := 0
@@ -685,44 +668,89 @@ func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, contentWidth i
 			doneArtifacts++
 		}
 	}
-	artifactSummary := ""
+	var summaryParts []string
 	if len(ch.Artifacts) > 0 {
-		artifactSummary = fmt.Sprintf("%d/%d artifacts", doneArtifacts, len(ch.Artifacts))
+		summaryParts = append(summaryParts, fmt.Sprintf("planning %d/%d", doneArtifacts, len(ch.Artifacts)))
 	}
-	if total == 0 {
-		text := cursorMark + renderedName
-		if artifactSummary != "" {
-			text += m.theme.Styles.Help.Render(" " + artifactSummary)
+	if totalTasks > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("tasks %d/%d", doneTasks, totalTasks))
+	}
+
+	var rightParts []string
+	if ch.Schema != "" {
+		rightParts = append(rightParts, m.theme.Styles.ProgressDone.Render("["+ch.Schema+"]"))
+	}
+	if len(summaryParts) > 0 {
+		rightParts = append(rightParts, m.theme.Styles.Help.Render(strings.Join(summaryParts, " · ")))
+	}
+	if ch.Diagnostic != "" {
+		rightParts = append(rightParts, m.theme.Styles.Error.Render("! "+ch.Diagnostic))
+	}
+	right := strings.Join(rightParts, " ")
+
+	const preferredNameWidth = 32
+	nameWidth := preferredNameWidth
+	barWidth := 0
+	if totalTasks > 0 {
+		barWidth = 8
+	}
+	maximumNameWidth := contentWidth - lipgloss.Width(cursorMark) - lipgloss.Width(right) - barWidth - 2
+	if maximumNameWidth < nameWidth {
+		nameWidth = maximumNameWidth
+	}
+	if nameWidth < 8 {
+		nameWidth = 8
+	}
+	name := truncateIndexText(ch.Name, nameWidth)
+	paddedName := name + strings.Repeat(" ", max(0, nameWidth-lipgloss.Width(name)))
+	renderedName := m.theme.Styles.BaseText.Render(paddedName)
+	if cursor {
+		renderedName = m.theme.Styles.IndexActive.Render(paddedName)
+	}
+
+	left := cursorMark + renderedName
+	if totalTasks > 0 {
+		barWidth = contentWidth - lipgloss.Width(left) - lipgloss.Width(right) - 2
+		if barWidth < 4 {
+			barWidth = 4
 		}
-		if ch.Diagnostic != "" {
-			text += m.theme.Styles.Error.Render(" ! " + ch.Diagnostic)
+		barInnerWidth := barWidth - 2
+		filled := (doneTasks * barInnerWidth) / totalTasks
+		filledStyle := m.theme.Styles.ProgressDone
+		if doneTasks == totalTasks {
+			filled = barInnerWidth
+			filledStyle = m.theme.Styles.ProgressComplete
 		}
+		bar := "[" + filledStyle.Render(strings.Repeat("█", filled)) +
+			m.theme.Styles.ProgressEmpty.Render(strings.Repeat("░", barInnerWidth-filled)) + "]"
+		left += " " + bar
+	}
+	return rightAlignIndexRow(left, right, contentWidth)
+}
+
+func truncateIndexText(text string, width int) string {
+	if lipgloss.Width(text) <= width {
 		return text
 	}
+	if width <= 1 {
+		return "."
+	}
+	runes := []rune(text)
+	for len(runes) > 0 && lipgloss.Width(string(runes))+1 > width {
+		runes = runes[:len(runes)-1]
+	}
+	return string(runes) + "."
+}
 
-	countStr := fmt.Sprintf(" %d/%d tasks", done, total)
-	if artifactSummary != "" {
-		countStr = " " + artifactSummary + " ·" + countStr
+func rightAlignIndexRow(left, right string, width int) string {
+	padding := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if right != "" && padding < 1 {
+		padding = 1
 	}
-	barSpace := contentWidth - 2 - nameColWidth - 2 - len(countStr)
-	if barSpace < 4 {
-		barSpace = 4
+	if padding < 0 {
+		padding = 0
 	}
-	filled := (done * barSpace) / total
-	filledStyle := m.theme.Styles.ProgressDone
-	if done == total {
-		filled = barSpace
-		filledStyle = m.theme.Styles.ProgressComplete
-	}
-	bar := "[" + filledStyle.Render(strings.Repeat("█", filled)) +
-		m.theme.Styles.ProgressEmpty.Render(strings.Repeat("░", barSpace-filled)) + "]" +
-		m.theme.Styles.Help.Render(countStr)
-
-	text := cursorMark + renderedName + bar
-	if ch.Diagnostic != "" {
-		text += m.theme.Styles.Error.Render(" ! " + ch.Diagnostic)
-	}
-	return text
+	return left + strings.Repeat(" ", padding) + right
 }
 
 func (m *Model) indexItemChange(item indexItem) (openspec.Change, bool) {
@@ -738,7 +766,7 @@ func (m *Model) indexItemChange(item indexItem) (openspec.Change, bool) {
 	return openspec.Change{}, false
 }
 
-func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool) string {
+func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool, contentWidth int) string {
 	cursorMark := "    "
 	if cursor {
 		cursorMark = "  " + m.theme.Styles.ProgressDone.Render("▶") + " "
@@ -747,23 +775,29 @@ func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexI
 	if cursor {
 		name = m.theme.Styles.IndexActive.Render(artifact.ID)
 	}
-	metadata := string(artifact.Status)
-	if metadata == "" {
-		metadata = string(artifact.Source)
-	}
+	left := cursorMark + name
 	if len(artifact.Requires) > 0 {
-		if metadata != "" {
-			metadata += " · "
-		}
-		metadata += "requires " + strings.Join(artifact.Requires, ", ")
+		left += "  " + m.theme.Styles.Help.Render("requires "+strings.Join(artifact.Requires, ", "))
 	}
 	if len(artifact.Outputs) > 1 && !m.index.ExpandedArtifacts[item.identity] {
-		metadata += " …"
+		left += m.theme.Styles.Help.Render(" …")
 	}
-	if metadata != "" {
-		name += "  " + m.theme.Styles.Help.Render(metadata)
+	return rightAlignIndexRow(left, m.renderArtifactStatusBadge(artifact), contentWidth)
+}
+
+func (m *Model) renderArtifactStatusBadge(artifact openspec.ChangeArtifact) string {
+	switch artifact.Status {
+	case openspec.ArtifactStatusDone:
+		return m.theme.Styles.ProgressComplete.Render("[authored]")
+	case openspec.ArtifactStatusReady:
+		return m.theme.Styles.Section.Render("[ready to author]")
+	case openspec.ArtifactStatusBlocked:
+		return m.theme.Styles.Error.Render("[blocked]")
 	}
-	return cursorMark + name
+	if artifact.Source == openspec.ArtifactSourceDiscovered {
+		return m.theme.Styles.ProgressDone.Render("[discovered]")
+	}
+	return m.theme.Styles.Help.Render("[unknown]")
 }
 
 func (m *Model) renderArtifactOutputItem(output openspec.ArtifactOutput, cursor bool) string {

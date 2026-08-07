@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/fselich/dossier/internal/openspec"
 	"github.com/fselich/dossier/internal/settings"
 )
@@ -148,6 +149,47 @@ func TestRebuildHierarchyPreservesCursorIdentity(t *testing.T) {
 	}
 }
 
+func TestRenderHierarchyDisambiguatesAndAlignsPlanningStatus(t *testing.T) {
+	change := hierarchyChange("add-index-workflow-actions", "spec-driven")
+	change.Tasks = openspec.Artifact{Present: true, Content: "- [ ] implement behavior\n"}
+	m := &Model{
+		project: &openspec.Project{Changes: []openspec.Change{change}},
+		index: indexState{
+			ExpandedSpecs:     make(map[int]bool),
+			ExpandedChanges:   map[string]bool{"active:add-index-workflow-actions": true},
+			ExpandedArtifacts: make(map[string]bool),
+		},
+		theme: Theme{Styles: BuildStyles(DarkColors)},
+		width: 82,
+	}
+	m.buildIndexItems()
+	content, _ := m.renderIndexContent()
+	lines := strings.Split(content, "\n")
+	var changeLine, artifactLine string
+	for _, line := range lines {
+		switch {
+		case strings.Contains(line, "add-index-workflow-actions"):
+			changeLine = line
+		case strings.Contains(line, "proposal"):
+			artifactLine = line
+		}
+	}
+	if !strings.Contains(changeLine, "planning 2/3") || !strings.Contains(changeLine, "tasks 0/1") {
+		t.Fatalf("expected separate planning and task progress, got %q", changeLine)
+	}
+	if !strings.Contains(changeLine, m.theme.Styles.ProgressDone.Render("[spec-driven]")) {
+		t.Fatalf("expected colored schema badge, got %q", changeLine)
+	}
+	if !strings.Contains(artifactLine, m.theme.Styles.ProgressComplete.Render("[authored]")) {
+		t.Fatalf("expected authored planning-document badge, got %q", artifactLine)
+	}
+	for name, line := range map[string]string{"change": changeLine, "artifact": artifactLine} {
+		if got := lipgloss.Width(line); got != m.width-2 {
+			t.Errorf("%s row width = %d, want %d: %q", name, got, m.width-2, line)
+		}
+	}
+}
+
 func TestRenderSchemaAwareHierarchy(t *testing.T) {
 	change := hierarchyChange("fix-cache", "bugfix")
 	change.Diagnostic = "degraded status"
@@ -163,7 +205,7 @@ func TestRenderSchemaAwareHierarchy(t *testing.T) {
 	}
 	m.buildIndexItems()
 	content, _ := m.renderIndexContent()
-	for _, expected := range []string{"Active Work", "Canonical Specs", "History", "fix-cache", "bugfix", "2/3 artifacts", "proposal", "tasks", "ready", "requires specs, design", "degraded status"} {
+	for _, expected := range []string{"Active Work", "Canonical Specs", "History", "fix-cache", "bugfix", "planning 2/3", "proposal", "tasks", "ready to author", "requires specs, design", "degraded status"} {
 		if !strings.Contains(content, expected) {
 			t.Errorf("expected rendered hierarchy to contain %q:\n%s", expected, content)
 		}
