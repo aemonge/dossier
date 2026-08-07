@@ -62,6 +62,8 @@ type indexState struct {
 	Items             []indexItem
 	Cursor            int
 	ExpandedSpecs     map[int]bool
+	ExpandedChanges   map[string]bool
+	ExpandedArtifacts map[string]bool
 	CollapsedSections [3]bool
 	SortBySuffix      bool
 	Order             []int
@@ -101,6 +103,8 @@ type indexItemKind int
 const (
 	indexKindActive indexItemKind = iota
 	indexKindArchived
+	indexKindArtifact
+	indexKindArtifactOutput
 	indexKindSpec
 	indexKindRequirement
 	indexKindSection
@@ -113,15 +117,20 @@ const (
 )
 
 var sectionNames = []string{
-	sectionActive:   "Active Changes",
-	sectionSpecs:    "Specifications",
-	sectionArchived: "Archived Changes",
+	sectionActive:   "Active Work",
+	sectionSpecs:    "Canonical Specs",
+	sectionArchived: "History",
 }
 
 type indexItem struct {
-	kind   indexItemKind
-	idx    int // into project.Changes (active), archiveChanges (archived), projectSpecs (spec/requirement), or section (section)
-	reqIdx int // index into projectSpecs[idx].RequirementNames; only used for indexKindRequirement
+	kind        indexItemKind
+	idx         int // change, archive, project spec, or section index
+	artifactIdx int
+	outputIdx   int
+	reqIdx      int
+	archived    bool
+	identity    string
+	depth       int
 }
 
 type Model struct {

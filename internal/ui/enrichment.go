@@ -173,8 +173,7 @@ func (m *Model) applyStatusEnrichment(msg statusEnrichmentMsg) {
 		changed = true
 	}
 	if changed && m.mode == ModeIndex && m.vpReady {
-		m.buildIndexItems()
-		m.applyFilter()
+		m.rebuildIndexPreservingCursor()
 		m.refreshIndexViewport()
 	}
 }

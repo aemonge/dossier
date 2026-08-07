@@ -66,11 +66,7 @@ func (m *Model) pollIndexMode() tea.Cmd {
 			}
 		}
 		if needsRefresh {
-			m.buildIndexItems()
-			m.applyFilter()
-			if m.index.Cursor >= m.visibleItemCount() {
-				m.index.Cursor = max(0, m.visibleItemCount()-1)
-			}
+			m.rebuildIndexPreservingCursor()
 			m.refreshIndexViewport()
 		}
 		return nil
@@ -89,12 +85,7 @@ func (m *Model) pollIndexMode() tea.Cmd {
 	if specErr != nil {
 		m.errMsg = "error loading project specs: " + specErr.Error()
 	}
-	m.index.ExpandedSpecs = make(map[int]bool)
-	m.buildIndexItems()
-	m.applyFilter()
-	if m.index.Cursor >= m.visibleItemCount() {
-		m.index.Cursor = max(0, m.visibleItemCount()-1)
-	}
+	m.rebuildIndexPreservingCursor()
 	m.refreshIndexViewport()
 	return nil
 }
@@ -262,34 +253,132 @@ func (m *Model) buildSpecOrder() {
 
 func (m *Model) buildIndexItems() {
 	m.buildSpecOrder()
+	if m.index.ExpandedSpecs == nil {
+		m.index.ExpandedSpecs = make(map[int]bool)
+	}
+	if m.index.ExpandedChanges == nil {
+		m.index.ExpandedChanges = make(map[string]bool)
+	}
+	if m.index.ExpandedArtifacts == nil {
+		m.index.ExpandedArtifacts = make(map[string]bool)
+	}
 	m.index.Items = nil
 
-	m.index.Items = append(m.index.Items, indexItem{kind: indexKindSection, idx: sectionActive})
-	if !m.index.CollapsedSections[sectionActive] {
+	m.index.Items = append(m.index.Items, indexItem{
+		kind: indexKindSection, idx: sectionActive, identity: "section:active-work",
+	})
+	if !m.index.CollapsedSections[sectionActive] && m.project != nil {
 		for i := range m.project.Changes {
-			m.index.Items = append(m.index.Items, indexItem{kind: indexKindActive, idx: i})
+			m.appendChangeHierarchy(m.project.Changes[i], i, false)
 		}
 	}
 
-	m.index.Items = append(m.index.Items, indexItem{kind: indexKindSection, idx: sectionSpecs})
+	m.index.Items = append(m.index.Items, indexItem{
+		kind: indexKindSection, idx: sectionSpecs, identity: "section:canonical-specs",
+	})
 	if !m.index.CollapsedSections[sectionSpecs] {
 		for _, i := range m.index.Order {
 			ps := m.projectSpecs[i]
-			m.index.Items = append(m.index.Items, indexItem{kind: indexKindSpec, idx: i})
+			m.index.Items = append(m.index.Items, indexItem{
+				kind: indexKindSpec, idx: i, identity: "canonical-spec:" + ps.Name, depth: 1,
+			})
 			if m.index.ExpandedSpecs[i] {
-				for r := range ps.RequirementNames {
-					m.index.Items = append(m.index.Items, indexItem{kind: indexKindRequirement, idx: i, reqIdx: r})
+				for r, requirement := range ps.RequirementNames {
+					m.index.Items = append(m.index.Items, indexItem{
+						kind: indexKindRequirement, idx: i, reqIdx: r,
+						identity: "canonical-spec:" + ps.Name + ":requirement:" + requirement,
+						depth:    2,
+					})
 				}
 			}
 		}
 	}
 
-	m.index.Items = append(m.index.Items, indexItem{kind: indexKindSection, idx: sectionArchived})
+	m.index.Items = append(m.index.Items, indexItem{
+		kind: indexKindSection, idx: sectionArchived, identity: "section:history",
+	})
 	if !m.index.CollapsedSections[sectionArchived] {
 		for i := range m.index.ArchiveChanges {
-			m.index.Items = append(m.index.Items, indexItem{kind: indexKindArchived, idx: i})
+			m.appendChangeHierarchy(m.index.ArchiveChanges[i], i, true)
 		}
 	}
+}
+
+func (m *Model) appendChangeHierarchy(change openspec.Change, changeIdx int, archived bool) {
+	prefix := "active:"
+	kind := indexKindActive
+	if archived {
+		prefix = "archive:"
+		kind = indexKindArchived
+	}
+	changeIdentity := prefix + change.Name
+	m.index.Items = append(m.index.Items, indexItem{
+		kind: kind, idx: changeIdx, archived: archived, identity: changeIdentity, depth: 1,
+	})
+	if !m.index.ExpandedChanges[changeIdentity] {
+		return
+	}
+	for artifactIdx, artifact := range change.Artifacts {
+		artifactIdentity := changeIdentity + ":artifact:" + artifact.ID
+		m.index.Items = append(m.index.Items, indexItem{
+			kind: indexKindArtifact, idx: changeIdx, artifactIdx: artifactIdx,
+			archived: archived, identity: artifactIdentity, depth: 2,
+		})
+		if len(artifact.Outputs) < 2 || !m.index.ExpandedArtifacts[artifactIdentity] {
+			continue
+		}
+		for outputIdx, output := range artifact.Outputs {
+			m.index.Items = append(m.index.Items, indexItem{
+				kind: indexKindArtifactOutput, idx: changeIdx, artifactIdx: artifactIdx, outputIdx: outputIdx,
+				archived: archived, identity: artifactIdentity + ":output:" + output.RelativePath, depth: 3,
+			})
+		}
+	}
+}
+
+func indexItemByIdentity(items []indexItem, identity string) int {
+	for index := range items {
+		if items[index].identity == identity {
+			return index
+		}
+	}
+	return -1
+}
+
+func (m *Model) selectedIndexIdentity() string {
+	if m.index.Cursor < 0 || m.index.Cursor >= m.visibleItemCount() {
+		return ""
+	}
+	rawIndex := m.index.Cursor
+	if m.index.FilterIndices != nil {
+		rawIndex = m.index.FilterIndices[m.index.Cursor]
+	}
+	if rawIndex < 0 || rawIndex >= len(m.index.Items) {
+		return ""
+	}
+	return m.index.Items[rawIndex].identity
+}
+
+func (m *Model) rebuildIndexPreservingCursor() {
+	identity := m.selectedIndexIdentity()
+	m.buildIndexItems()
+	m.applyFilter()
+	if identity != "" {
+		rawIndex := indexItemByIdentity(m.index.Items, identity)
+		if rawIndex >= 0 {
+			if m.index.FilterIndices == nil {
+				m.index.Cursor = rawIndex
+				return
+			}
+			for visibleIndex, filteredRawIndex := range m.index.FilterIndices {
+				if filteredRawIndex == rawIndex {
+					m.index.Cursor = visibleIndex
+					return
+				}
+			}
+		}
+	}
+	m.index.Cursor = min(m.index.Cursor, max(0, m.visibleItemCount()-1))
 }
 
 func (m *Model) refreshIndexViewport() {
@@ -329,8 +418,12 @@ func (m *Model) renderIndexContent() (string, int) {
 	maxReqDigits := len(strconv.Itoa(maxReqCount))
 	maxArchName := 0
 	for _, ch := range m.index.ArchiveChanges {
-		if len(ch.Name) > maxArchName {
-			maxArchName = len(ch.Name)
+		displayName := ch.Name
+		if ch.Schema != "" {
+			displayName += " [" + ch.Schema + "]"
+		}
+		if len(displayName) > maxArchName {
+			maxArchName = len(displayName)
 		}
 	}
 
@@ -414,6 +507,17 @@ func (m *Model) renderIndexContent() (string, int) {
 			case indexKindActive:
 				ch := m.project.Changes[childItem.idx]
 				sb.WriteString(m.renderActiveItem(ch, childCursor, contentWidth) + "\n")
+			case indexKindArtifact:
+				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
+					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor) + "\n")
+				}
+			case indexKindArtifactOutput:
+				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
+					artifact := ch.Artifacts[childItem.artifactIdx]
+					if childItem.outputIdx < len(artifact.Outputs) {
+						sb.WriteString(m.renderArtifactOutputItem(artifact.Outputs[childItem.outputIdx], childCursor) + "\n")
+					}
+				}
 			case indexKindSpec:
 				ps := m.projectSpecs[childItem.idx]
 				pad := strings.Repeat(" ", maxSpecName-len(ps.Name))
@@ -469,11 +573,11 @@ func sectionItemCount(sectionIdx int, m *Model) int {
 func sectionEmptyMsg(sectionIdx int) string {
 	switch sectionIdx {
 	case sectionActive:
-		return "No active changes"
+		return "No active work"
 	case sectionSpecs:
-		return "No specifications available"
+		return "No canonical specifications available"
 	case sectionArchived:
-		return "No archived changes"
+		return "No history"
 	}
 	return ""
 }
@@ -497,6 +601,9 @@ func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, contentWidth i
 
 	const nameColWidth = 32
 	name := ch.Name
+	if ch.Schema != "" {
+		name += " [" + ch.Schema + "]"
+	}
 	if len(name) > nameColWidth {
 		name = name[:nameColWidth-1] + "."
 	}
@@ -509,11 +616,31 @@ func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, contentWidth i
 		renderedName = m.theme.Styles.BaseText.Render(paddedName)
 	}
 
+	doneArtifacts := 0
+	for _, artifact := range ch.Artifacts {
+		if artifact.Status == openspec.ArtifactStatusDone {
+			doneArtifacts++
+		}
+	}
+	artifactSummary := ""
+	if len(ch.Artifacts) > 0 {
+		artifactSummary = fmt.Sprintf("%d/%d artifacts", doneArtifacts, len(ch.Artifacts))
+	}
 	if total == 0 {
-		return cursorMark + renderedName
+		text := cursorMark + renderedName
+		if artifactSummary != "" {
+			text += m.theme.Styles.Help.Render(" " + artifactSummary)
+		}
+		if ch.Diagnostic != "" {
+			text += m.theme.Styles.Error.Render(" ! " + ch.Diagnostic)
+		}
+		return text
 	}
 
-	countStr := fmt.Sprintf(" %d/%d", done, total)
+	countStr := fmt.Sprintf(" %d/%d tasks", done, total)
+	if artifactSummary != "" {
+		countStr = " " + artifactSummary + " ·" + countStr
+	}
 	barSpace := contentWidth - 2 - nameColWidth - 2 - len(countStr)
 	if barSpace < 4 {
 		barSpace = 4
@@ -528,7 +655,67 @@ func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, contentWidth i
 		m.theme.Styles.ProgressEmpty.Render(strings.Repeat("░", barSpace-filled)) + "]" +
 		m.theme.Styles.Help.Render(countStr)
 
-	return cursorMark + renderedName + bar
+	text := cursorMark + renderedName + bar
+	if ch.Diagnostic != "" {
+		text += m.theme.Styles.Error.Render(" ! " + ch.Diagnostic)
+	}
+	return text
+}
+
+func (m *Model) indexItemChange(item indexItem) (openspec.Change, bool) {
+	if item.archived {
+		if item.idx >= 0 && item.idx < len(m.index.ArchiveChanges) {
+			return m.index.ArchiveChanges[item.idx], true
+		}
+		return openspec.Change{}, false
+	}
+	if m.project != nil && item.idx >= 0 && item.idx < len(m.project.Changes) {
+		return m.project.Changes[item.idx], true
+	}
+	return openspec.Change{}, false
+}
+
+func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool) string {
+	cursorMark := "    "
+	if cursor {
+		cursorMark = "  " + m.theme.Styles.ProgressDone.Render("▶") + " "
+	}
+	name := m.theme.Styles.BaseText.Render(artifact.ID)
+	if cursor {
+		name = m.theme.Styles.IndexActive.Render(artifact.ID)
+	}
+	metadata := string(artifact.Status)
+	if metadata == "" {
+		metadata = string(artifact.Source)
+	}
+	if len(artifact.Requires) > 0 {
+		if metadata != "" {
+			metadata += " · "
+		}
+		metadata += "requires " + strings.Join(artifact.Requires, ", ")
+	}
+	if len(artifact.Outputs) > 1 && !m.index.ExpandedArtifacts[item.identity] {
+		metadata += " …"
+	}
+	if metadata != "" {
+		name += "  " + m.theme.Styles.Help.Render(metadata)
+	}
+	return cursorMark + name
+}
+
+func (m *Model) renderArtifactOutputItem(output openspec.ArtifactOutput, cursor bool) string {
+	cursorMark := "      "
+	if cursor {
+		cursorMark = "    " + m.theme.Styles.ProgressDone.Render("▶") + " "
+	}
+	name := output.DisplayName
+	if name == "" {
+		name = output.RelativePath
+	}
+	if cursor {
+		return cursorMark + m.theme.Styles.IndexActive.Render(name)
+	}
+	return cursorMark + m.theme.Styles.TaskPending.Render(name)
 }
 
 func (m *Model) renderArchivedItem(ch openspec.Change, cursor bool, maxName int) string {
@@ -537,14 +724,26 @@ func (m *Model) renderArchivedItem(ch openspec.Change, cursor bool, maxName int)
 		cursorMark = m.theme.Styles.ProgressDone.Render("▶") + " "
 	}
 
-	pad := strings.Repeat(" ", maxName-len(ch.Name))
+	displayName := ch.Name
+	if ch.Schema != "" {
+		displayName += " [" + ch.Schema + "]"
+	}
+	padWidth := maxName - len(displayName)
+	if padWidth < 0 {
+		padWidth = 0
+	}
+	pad := strings.Repeat(" ", padWidth)
 	date := m.theme.Styles.Help.Render(ch.DisplayDate)
-	name := m.theme.Styles.BaseText.Render(ch.Name) + pad
+	name := m.theme.Styles.BaseText.Render(displayName) + pad
 	if cursor {
-		name = m.theme.Styles.IndexActive.Render(ch.Name) + pad
+		name = m.theme.Styles.IndexActive.Render(displayName) + pad
 	}
 
-	return cursorMark + name + "  " + date
+	text := cursorMark + name + "  " + date
+	if ch.Diagnostic != "" {
+		text += m.theme.Styles.Error.Render(" ! " + ch.Diagnostic)
+	}
+	return text
 }
 
 const indexViewportContentStart = 3

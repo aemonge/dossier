@@ -28,11 +28,11 @@
 
 ## 5. Hierarchical index model and rendering
 
-- [ ] 5.1 Add failing model tests for typed identities covering sections, active/archive changes, artifacts, outputs, canonical specs, and requirements (estimate: 5 hours)
-- [ ] 5.2 Replace flat index item kinds/indices with stable hierarchy nodes and parent/child ownership (estimate: 7 hours)
-- [ ] 5.3 Add rendering tests for Active Work, schema badges, artifact progress/status/requires, delta output children, Canonical Specs, History, degraded diagnostics, and empty states (estimate: 7 hours)
-- [ ] 5.4 Implement hierarchy rendering with DAG dependencies as metadata and canonical/delta spec visual distinction (estimate: 7 hours)
-- [ ] 5.5 Add tests and implementation for logical cursor restoration when siblings/outputs are inserted, removed, reordered, or enriched (estimate: 5 hours)
+- [x] 5.1 Add failing model tests for typed identities covering sections, active/archive changes, artifacts, outputs, canonical specs, and requirements (estimate: 5 hours)
+- [x] 5.2 Replace flat index item kinds/indices with stable hierarchy nodes and parent/child ownership (estimate: 7 hours)
+- [x] 5.3 Add rendering tests for Active Work, schema badges, artifact progress/status/requires, delta output children, Canonical Specs, History, degraded diagnostics, and empty states (estimate: 7 hours)
+- [x] 5.4 Implement hierarchy rendering with DAG dependencies as metadata and canonical/delta spec visual distinction (estimate: 7 hours)
+- [x] 5.5 Add tests and implementation for logical cursor restoration when siblings/outputs are inserted, removed, reordered, or enriched (estimate: 5 hours)
 
 ## 6. Expansion, filtering, mouse, and contextual navigation
 
