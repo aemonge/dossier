@@ -14,10 +14,10 @@
 
 ## 3. OpenSpec schema/status adapter
 
-- [ ] 3.1 Add injectable command-runner tests for `openspec list --json`, `openspec schemas --json`, and `openspec status --change <name> --json`, including malformed JSON, stderr, missing executable, unsafe paths, and unknown status values (estimate: 7 hours)
-- [ ] 3.2 Implement typed schema catalog, change status, artifact path/status, and diagnostic parsing in a focused adapter (estimate: 7 hours)
-- [ ] 3.3 Add failing merge tests that enrich discovered changes with authoritative schema order/status while preserving readable fallback outputs on partial failures (estimate: 5 hours)
-- [ ] 3.4 Implement active-change status enrichment with root-containment validation and stale-result fingerprint guards (estimate: 6 hours)
+- [x] 3.1 Add injectable command-runner tests for `openspec list --json`, `openspec schemas --json`, and `openspec status --change <name> --json`, including malformed JSON, stderr, missing executable, unsafe paths, and unknown status values (estimate: 7 hours)
+- [x] 3.2 Implement typed schema catalog, change status, artifact path/status, and diagnostic parsing in a focused adapter (estimate: 7 hours)
+- [x] 3.3 Add failing merge tests that enrich discovered changes with authoritative schema order/status while preserving readable fallback outputs on partial failures (estimate: 5 hours)
+- [x] 3.4 Implement active-change status enrichment with root-containment validation and fallback preservation; stale-result fingerprint guards remain in asynchronous enrichment task 4.2 (estimate: 6 hours)
 
 ## 4. Bounded asynchronous enrichment and caching
 
