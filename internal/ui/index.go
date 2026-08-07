@@ -114,7 +114,9 @@ func (m *Model) pollNormalModeChanges() tea.Cmd {
 				return nil
 			}
 			m.renderCache = make(map[Tab]string)
+			m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 			m.tab = m.defaultTab()
+			m.selectDefaultArtifact()
 			m.loadTaskItems()
 			return m.loadViewport()
 		}
@@ -165,6 +167,9 @@ func (m *Model) enterIndex() {
 	m.index.ExpandedSpecs = make(map[int]bool)
 	m.buildIndexItems()
 	m.index.Cursor = 0
+	if restored := indexItemByIdentity(m.index.Items, m.returnIndexIdentity); restored >= 0 {
+		m.index.Cursor = restored
+	}
 	m.mode = ModeIndex
 	m.vp.SetHeight(m.contentHeight())
 	m.refreshIndexViewport()
@@ -1113,18 +1118,22 @@ func (m Model) toggleIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) inspectIndexItem(item indexItem) (tea.Model, tea.Cmd) {
+	m.returnIndexIdentity = item.identity
 	m.renderCache = make(map[Tab]string)
+	m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 	switch item.kind {
 	case indexKindActive:
 		m.changeIdx = item.idx
 		m.mode = ModeNormal
 		m.tab = m.defaultTab()
+		m.selectDefaultArtifact()
 		m.loadTaskItems()
 		return m.commitStateChange()
 	case indexKindArchived:
 		m.index.ArchiveCursor = item.idx
-		m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
 		m.mode = ModeViewingArchive
+		m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
+		m.selectDefaultArtifact()
 		return m.commitStateChange()
 	case indexKindArtifact, indexKindArtifactOutput:
 		if item.archived {
@@ -1136,6 +1145,14 @@ func (m Model) inspectIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 			m.mode = ModeNormal
 			m.tab = m.defaultTab()
 			m.loadTaskItems()
+		}
+		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
+			artifact := change.Artifacts[item.artifactIdx]
+			outputPath := firstArtifactOutputPath(artifact)
+			if item.kind == indexKindArtifactOutput && item.outputIdx < len(artifact.Outputs) {
+				outputPath = artifact.Outputs[item.outputIdx].RelativePath
+			}
+			m.selectArtifactOutput(artifact.ID, outputPath)
 		}
 		return m.commitStateChange()
 	case indexKindSpec:

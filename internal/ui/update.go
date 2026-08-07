@@ -23,7 +23,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.vp.SetHeight(contentH)
 		}
 		m.renderCache = make(map[Tab]string)
+		m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 		return m, m.loadViewport()
+
+	case artifactRenderedMsg:
+		if m.artifactRenderCache == nil {
+			m.artifactRenderCache = make(map[artifactOutputIdentity]string)
+		}
+		m.artifactRenderCache[msg.key] = msg.content
+		m.loading = false
+		if key, ok := m.selectedArtifactKey(); ok && key == msg.key {
+			m.vp.SetContent(msg.content)
+			m.vp.GotoTop()
+		}
+		return m, nil
 
 	case renderedMsg:
 		m.renderCache[msg.tab] = msg.content
@@ -68,6 +81,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusEnrichmentMsg:
 		m.applyStatusEnrichment(msg)
+		if (m.mode == ModeNormal || m.mode == ModeViewingArchive) && m.vpReady {
+			return m, m.loadViewport()
+		}
 		return m, nil
 
 	case tickMsg:
@@ -88,6 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.tasks.Cursor = openspec.FindCursorByText(m.tasks.Items, cursorText)
 			}
 			delete(m.renderCache, m.tab)
+			m.invalidateArtifactRenderCache(ch.Name)
 		}
 		return m, m.loadViewport()
 

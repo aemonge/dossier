@@ -91,24 +91,54 @@ func (m *Model) renderHeader() string {
 
 func (m *Model) renderTabBar() string {
 	parts := make([]string, 0, tabCount)
-	for t := Tab(0); t < tabCount; t++ {
-		if t == TabGit && m.mode != ModeNormal {
-			continue
+	selectedPart := 0
+	ch := m.current()
+	if ch != nil && len(ch.Artifacts) > 0 {
+		parts = make([]string, 0, len(ch.Artifacts)+1)
+		for artifactIndex, artifact := range ch.Artifacts {
+			label := artifact.ID + artifactTabStatusSuffix(artifact)
+			if !m.viewingCode && artifact.ID == m.artifactSelection.ArtifactID {
+				selectedPart = artifactIndex
+				parts = append(parts, m.theme.Styles.TabActive.Render(label))
+			} else {
+				parts = append(parts, m.theme.Styles.TabInactive.Render(label))
+			}
 		}
-		label := tabLabels[t]
-		if t == TabGit && len(m.gitState.Files) > 0 {
-			label = "code (" + fmt.Sprintf("%d", len(m.gitState.Files)) + ")"
+		if m.isGitRepo && m.mode == ModeNormal {
+			label := "code"
+			if len(m.gitState.Files) > 0 {
+				label += " (" + fmt.Sprintf("%d", len(m.gitState.Files)) + ")"
+			}
+			if m.viewingCode {
+				selectedPart = len(parts)
+				parts = append(parts, m.theme.Styles.TabActive.Render(label))
+			} else if len(m.gitState.Files) == 0 {
+				parts = append(parts, m.theme.Styles.TabDisabled.Render(label))
+			} else {
+				parts = append(parts, m.theme.Styles.TabInactive.Render(label))
+			}
 		}
-		switch {
-		case t == m.tab:
-			parts = append(parts, m.theme.Styles.TabActive.Render(label))
-		case !m.tabAvailable(t):
-			parts = append(parts, m.theme.Styles.TabDisabled.Render(label))
-		default:
-			parts = append(parts, m.theme.Styles.TabInactive.Render(label))
+	} else {
+		for t := Tab(0); t < tabCount; t++ {
+			if t == TabGit && m.mode != ModeNormal {
+				continue
+			}
+			label := tabLabels[t]
+			if t == TabGit && len(m.gitState.Files) > 0 {
+				label = "code (" + fmt.Sprintf("%d", len(m.gitState.Files)) + ")"
+			}
+			switch {
+			case t == m.tab:
+				selectedPart = len(parts)
+				parts = append(parts, m.theme.Styles.TabActive.Render(label))
+			case !m.tabAvailable(t):
+				parts = append(parts, m.theme.Styles.TabDisabled.Render(label))
+			default:
+				parts = append(parts, m.theme.Styles.TabInactive.Render(label))
+			}
 		}
 	}
-	tabs := strings.Join(parts, " ")
+	tabs := fitTabParts(parts, selectedPart, m.width-2, m.theme.Styles.Help)
 
 	taskItems := m.tasks.Items
 	if m.mode == ModeViewingArchive {
@@ -135,6 +165,62 @@ func (m *Model) renderTabBar() string {
 		}
 	}
 	return tabs
+}
+
+func fitTabParts(parts []string, selected, width int, markerStyle lipgloss.Style) string {
+	if len(parts) == 0 || width <= 0 {
+		return ""
+	}
+	all := strings.Join(parts, " ")
+	if lipgloss.Width(all) <= width {
+		return all
+	}
+	selected = min(max(0, selected), len(parts)-1)
+	start, end := selected, selected+1
+	render := func(from, to int) string {
+		visible := strings.Join(parts[from:to], " ")
+		if from > 0 {
+			visible = markerStyle.Render("‹") + " " + visible
+		}
+		if to < len(parts) {
+			visible += " " + markerStyle.Render("›")
+		}
+		return visible
+	}
+	for {
+		expanded := false
+		if end < len(parts) && lipgloss.Width(render(start, end+1)) <= width {
+			end++
+			expanded = true
+		}
+		if start > 0 && lipgloss.Width(render(start-1, end)) <= width {
+			start--
+			expanded = true
+		}
+		if !expanded {
+			break
+		}
+	}
+	result := render(start, end)
+	if lipgloss.Width(result) > width {
+		return lipgloss.NewStyle().MaxWidth(width).Render(result)
+	}
+	return result
+}
+
+func artifactTabStatusSuffix(artifact openspec.ChangeArtifact) string {
+	switch artifact.Status {
+	case openspec.ArtifactStatusDone:
+		return " ✓"
+	case openspec.ArtifactStatusReady:
+		return " ○"
+	case openspec.ArtifactStatusBlocked:
+		return " ×"
+	}
+	if artifact.Source == openspec.ArtifactSourceDiscovered {
+		return " ~"
+	}
+	return ""
 }
 
 func (m *Model) renderSpecSubnav() string {

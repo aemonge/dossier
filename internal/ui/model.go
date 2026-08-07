@@ -137,9 +137,11 @@ type Model struct {
 	root   string
 	loader *openspec.Loader
 
-	project   *openspec.Project
-	changeIdx int
-	tab       Tab
+	project           *openspec.Project
+	changeIdx         int
+	tab               Tab // compatibility capability marker until Slice 8 completes
+	artifactSelection artifactSelection
+	viewingCode       bool
 
 	openSpec              openSpecClient
 	schemaCatalog         []openspec.SchemaInfo
@@ -167,18 +169,20 @@ type Model struct {
 
 	width, height int
 
-	renderCache     map[Tab]string
-	glamourRenderer *glamour.TermRenderer
-	lastRenderWidth int
+	renderCache         map[Tab]string // compatibility cache for specialized Slice 8 views
+	artifactRenderCache map[artifactOutputIdentity]string
+	glamourRenderer     *glamour.TermRenderer
+	lastRenderWidth     int
 
-	mode          Mode
-	prevMode      Mode
-	index         indexState
-	projectSpecs  []openspec.ProjectSpec
-	specViewer    specViewerState
-	projectConfig openspec.ProjectConfig
-	theme         Theme
-	keyMap        settings.KeyConfig
+	mode                Mode
+	prevMode            Mode
+	returnIndexIdentity string
+	index               indexState
+	projectSpecs        []openspec.ProjectSpec
+	specViewer          specViewerState
+	projectConfig       openspec.ProjectConfig
+	theme               Theme
+	keyMap              settings.KeyConfig
 }
 
 func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
@@ -192,6 +196,7 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 		pendingEnrichments:    make(map[string]string),
 		enrichmentRetryAfter:  make(map[string]time.Time),
 		renderCache:           make(map[Tab]string),
+		artifactRenderCache:   make(map[artifactOutputIdentity]string),
 		projectConfig:         cfg,
 		theme:                 theme,
 		keyMap:                keyMap,
@@ -208,6 +213,7 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 	m.pollGitStatus()
 	if len(project.Changes) > 0 {
 		m.tab = m.defaultTab()
+		m.selectDefaultArtifact()
 		m.loadTaskItems()
 	} else {
 		var archiveErr error

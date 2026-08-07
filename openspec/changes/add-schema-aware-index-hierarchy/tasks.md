@@ -45,11 +45,11 @@
 
 ## 7. Dynamic artifact viewer
 
-- [ ] 7.1 Add viewer tests for feature, bugfix, spike, task-only, ready/blocked missing outputs, arbitrary artifact counts, and selected output identity (estimate: 7 hours)
-- [ ] 7.2 Replace fixed artifact tab state with `{artifactID, outputPath}` selection and schema-ordered navigation (estimate: 8 hours)
-- [ ] 7.3 Implement dynamic artifact labels/status, positional selection, next/previous navigation, mouse selection, overflow handling, and synthetic code destination (estimate: 7 hours)
-- [ ] 7.4 Migrate Glamour loading and render-cache keys to generic output paths; test refresh/removal/insertion without raw-content flashes (estimate: 7 hours)
-- [ ] 7.5 Add tests and implementation for opening a change, artifact, or exact output from hierarchy inspect while preserving return selection (estimate: 5 hours)
+- [x] 7.1 Add viewer tests for feature, bugfix, spike, task-only, ready/blocked missing outputs, arbitrary artifact counts, and selected output identity (estimate: 7 hours)
+- [x] 7.2 Replace fixed artifact tab state with `{artifactID, outputPath}` selection and schema-ordered navigation (estimate: 8 hours)
+- [x] 7.3 Implement dynamic artifact labels/status, positional selection, next/previous navigation, mouse selection, overflow handling, and synthetic code destination (estimate: 7 hours)
+- [x] 7.4 Migrate Glamour loading and render-cache keys to generic output paths; test refresh/removal/insertion without raw-content flashes (estimate: 7 hours)
+- [x] 7.5 Add tests and implementation for opening a change, artifact, or exact output from hierarchy inspect while preserving return selection (estimate: 5 hours)
 
 ## 8. Specialized task, spec, editor, and Git behavior
 

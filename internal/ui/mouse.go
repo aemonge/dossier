@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 func (m Model) handleMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
@@ -102,6 +103,34 @@ func (m Model) handleMouseClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 	}
 
 	x := 1
+	if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+		for index, artifact := range ch.Artifacts {
+			label := artifact.ID + artifactTabStatusSuffix(artifact)
+			w := lipgloss.Width(label) + 2
+			if msg.X >= x && msg.X <= x+w-1 {
+				if m.selectArtifactPosition(index) {
+					m.vp.SetHeight(m.contentHeight())
+					return m, m.loadViewport()
+				}
+				return m, nil
+			}
+			x += w + 1
+		}
+		if m.isGitRepo && m.mode == ModeNormal {
+			label := "code"
+			if len(m.gitState.Files) > 0 {
+				label += " (" + fmt.Sprintf("%d", len(m.gitState.Files)) + ")"
+			}
+			w := lipgloss.Width(label) + 2
+			if msg.X >= x && msg.X <= x+w-1 && len(m.gitState.Files) > 0 {
+				m.viewingCode = true
+				m.tab = TabGit
+				m.vp.SetHeight(m.contentHeight())
+				return m, m.loadViewport()
+			}
+		}
+		return m, nil
+	}
 	for t := Tab(0); t < tabCount; t++ {
 		label := tabLabels[t]
 		if t == TabGit && len(m.gitState.Files) > 0 {

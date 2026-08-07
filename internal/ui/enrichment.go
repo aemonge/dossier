@@ -168,6 +168,10 @@ func (m *Model) applyStatusEnrichment(msg statusEnrichmentMsg) {
 			continue
 		}
 		m.project.Changes[index] = m.loader.EnrichChange(m.project.Changes[index], result.Status)
+		m.invalidateArtifactRenderCache(result.ChangeName)
+		if m.mode == ModeNormal && index == m.changeIdx {
+			m.reconcileArtifactSelection()
+		}
 		m.enrichedFingerprints[result.ChangeName] = result.Fingerprint
 		delete(m.enrichmentRetryAfter, result.ChangeName)
 		changed = true
@@ -220,6 +224,10 @@ func (m *Model) adoptDiscoveredChange(index int, fresh openspec.Change) bool {
 	}
 	oldName := m.project.Changes[index].Name
 	m.project.Changes[index] = fresh
+	m.invalidateArtifactRenderCache(oldName)
+	if m.mode == ModeNormal && index == m.changeIdx {
+		m.reconcileArtifactSelection()
+	}
 	if oldName != fresh.Name {
 		delete(m.discoveryFingerprints, oldName)
 		delete(m.enrichedFingerprints, oldName)

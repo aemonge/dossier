@@ -20,7 +20,7 @@ func (m *Model) loadViewport() tea.Cmd {
 		return m.loadViewportForConfig()
 	case m.mode == ModeViewingSpec:
 		return m.loadViewportForSpec()
-	case m.tab == TabTasks && m.mode == ModeNormal:
+	case m.tab == TabTasks && m.mode == ModeNormal && m.artifactSelection.ArtifactID == "tasks" && m.artifactSelection.OutputPath != "":
 		return m.loadViewportForTasks()
 	case m.tab == TabGit && m.mode == ModeNormal:
 		return m.loadViewportForGit()
@@ -143,6 +143,36 @@ func (m *Model) loadViewportForGit() tea.Cmd {
 }
 
 func (m *Model) loadViewportForArtifact() tea.Cmd {
+	if key, ok := m.selectedArtifactKey(); ok {
+		if cached, cachedOK := m.artifactRenderCache[key]; cachedOK {
+			m.vp.SetContent(cached)
+			return nil
+		}
+		artifact, output, _ := m.selectedArtifactOutput()
+		raw := artifactStatusView(artifact)
+		if output != nil {
+			raw = output.Content
+		}
+		if raw == "" {
+			m.vp.SetContent("  (artifact not available)")
+			return nil
+		}
+		m.loading = true
+		m.vp.SetContent("")
+		width := m.renderWidth()
+		m.ensureRenderer(width)
+		if m.glamourRenderer == nil {
+			return func() tea.Msg { return artifactRenderedMsg{key: key, content: raw} }
+		}
+		return func() tea.Msg {
+			out, err := m.glamourRenderer.Render(raw)
+			if err != nil {
+				return artifactRenderedMsg{key: key, content: raw}
+			}
+			return artifactRenderedMsg{key: key, content: out}
+		}
+	}
+
 	if cached, ok := m.renderCache[m.tab]; ok {
 		m.vp.SetContent(cached)
 		return nil

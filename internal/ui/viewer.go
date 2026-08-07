@@ -68,8 +68,10 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(m.project.Changes) > 0 {
 			m.changeIdx = (m.changeIdx - 1 + len(m.project.Changes)) % len(m.project.Changes)
 			m.renderCache = make(map[Tab]string)
+			m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 			m.loadTaskItems()
 			m.tab = m.defaultTab()
+			m.selectDefaultArtifact()
 			m.specIdx = 0
 			return m.commitStateChange()
 		}
@@ -78,8 +80,10 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		if len(m.project.Changes) > 0 {
 			m.changeIdx = (m.changeIdx + 1) % len(m.project.Changes)
 			m.renderCache = make(map[Tab]string)
+			m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 			m.loadTaskItems()
 			m.tab = m.defaultTab()
+			m.selectDefaultArtifact()
 			m.specIdx = 0
 			return m.commitStateChange()
 		}
@@ -114,17 +118,29 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case matchesKey(msg, keys.ProposalTab):
-		if m.tabAvailable(TabProposal) {
+		if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+			if m.selectArtifactPosition(0) {
+				return m.commitStateChange()
+			}
+		} else if m.tabAvailable(TabProposal) {
 			m.tab = TabProposal
 			return m.commitStateChange()
 		}
 	case matchesKey(msg, keys.DesignTab):
-		if m.tabAvailable(TabDesign) {
+		if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+			if m.selectArtifactPosition(1) {
+				return m.commitStateChange()
+			}
+		} else if m.tabAvailable(TabDesign) {
 			m.tab = TabDesign
 			return m.commitStateChange()
 		}
 	case matchesKey(msg, keys.SpecsTab):
-		if m.tabAvailable(TabSpecs) {
+		if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+			if m.selectArtifactPosition(2) {
+				return m.commitStateChange()
+			}
+		} else if m.tabAvailable(TabSpecs) {
 			if m.tab == TabSpecs {
 				ch := m.current()
 				if ch != nil && len(ch.SpecFiles) > 1 {
@@ -138,27 +154,44 @@ func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m.commitStateChange()
 		}
 	case matchesKey(msg, keys.TasksTab):
-		if m.tabAvailable(TabTasks) {
+		if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+			if m.selectArtifactPosition(3) {
+				return m.commitStateChange()
+			}
+		} else if m.tabAvailable(TabTasks) {
 			m.tab = TabTasks
 			return m.commitStateChange()
 		}
 	case matchesKey(msg, keys.GitTab):
 		if m.tabAvailable(TabGit) {
+			m.viewingCode = true
 			m.tab = TabGit
 			return m.commitStateChange()
 		}
 
 	case matchesKey(msg, keys.NextTab):
-		nxt := m.nextAvailableTab(m.tab, 1)
-		if nxt != m.tab {
-			m.tab = nxt
-			return m.commitStateChange()
+		if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+			if m.moveViewerDestination(1) {
+				return m.commitStateChange()
+			}
+		} else {
+			nxt := m.nextAvailableTab(m.tab, 1)
+			if nxt != m.tab {
+				m.tab = nxt
+				return m.commitStateChange()
+			}
 		}
 	case matchesKey(msg, keys.PreviousTab):
-		prv := m.nextAvailableTab(m.tab, -1)
-		if prv != m.tab {
-			m.tab = prv
-			return m.commitStateChange()
+		if ch := m.current(); ch != nil && len(ch.Artifacts) > 0 {
+			if m.moveViewerDestination(-1) {
+				return m.commitStateChange()
+			}
+		} else {
+			prv := m.nextAvailableTab(m.tab, -1)
+			if prv != m.tab {
+				m.tab = prv
+				return m.commitStateChange()
+			}
 		}
 
 	case matchesKey(msg, keys.ViewDiff):
