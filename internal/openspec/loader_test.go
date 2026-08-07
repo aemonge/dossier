@@ -411,6 +411,120 @@ func TestLoadFromPath(t *testing.T) {
 	})
 }
 
+func TestSchemaAwareChangeModel(t *testing.T) {
+	t.Run("loads schema metadata and conventional artifacts dynamically", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"my-change"})
+		dir := filepath.Join(root, "openspec", "changes", "my-change")
+		if err := os.WriteFile(filepath.Join(dir, ".openspec.yaml"), []byte("schema: spec-driven\ncreated: 2026-05-24\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		files := map[string]string{
+			"proposal.md":            "# Proposal",
+			"design.md":              "# Design",
+			"tasks.md":               "- [ ] task",
+			"specs/auth/spec.md":     "# Auth",
+			"specs/payments/spec.md": "# Payments",
+		}
+		for name, content := range files {
+			path := filepath.Join(dir, name)
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		proj, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		if ch.Schema != "spec-driven" {
+			t.Fatalf("expected schema spec-driven, got %q", ch.Schema)
+		}
+		wantIDs := []string{"proposal", "specs", "design", "tasks"}
+		if len(ch.Artifacts) != len(wantIDs) {
+			t.Fatalf("expected %d artifacts, got %d", len(wantIDs), len(ch.Artifacts))
+		}
+		for i, want := range wantIDs {
+			if ch.Artifacts[i].ID != want {
+				t.Errorf("artifact %d: expected %q, got %q", i, want, ch.Artifacts[i].ID)
+			}
+			if ch.Artifacts[i].Source != ArtifactSourceDiscovered {
+				t.Errorf("artifact %q: expected discovered source, got %q", want, ch.Artifacts[i].Source)
+			}
+		}
+		specs, ok := ch.ArtifactByID("specs")
+		if !ok {
+			t.Fatal("expected dynamic specs artifact")
+		}
+		if len(specs.Outputs) != 2 {
+			t.Fatalf("expected 2 spec outputs, got %d", len(specs.Outputs))
+		}
+		if specs.Outputs[0].RelativePath != "specs/auth/spec.md" || specs.Outputs[1].RelativePath != "specs/payments/spec.md" {
+			t.Fatalf("unexpected spec output order: %#v", specs.Outputs)
+		}
+	})
+
+	t.Run("retains arbitrary artifact identifiers and dependency metadata", func(t *testing.T) {
+		ch := Change{Artifacts: []ChangeArtifact{
+			{ID: "proposal", Status: ArtifactStatusDone},
+			{
+				ID:       "diagnosis",
+				Status:   ArtifactStatusReady,
+				Requires: []string{"proposal", "reproduction"},
+				Outputs: []ArtifactOutput{{
+					RelativePath: "diagnosis.md",
+					DisplayName:  "diagnosis",
+					Content:      "# Root cause",
+					Present:      true,
+				}},
+			},
+		}}
+
+		artifact, ok := ch.ArtifactByID("diagnosis")
+		if !ok {
+			t.Fatal("expected diagnosis artifact")
+		}
+		if artifact.Status != ArtifactStatusReady {
+			t.Errorf("expected ready status, got %q", artifact.Status)
+		}
+		if len(artifact.Requires) != 2 || artifact.Requires[1] != "reproduction" {
+			t.Errorf("unexpected requirements: %#v", artifact.Requires)
+		}
+		if len(artifact.Outputs) != 1 || artifact.Outputs[0].Content != "# Root cause" {
+			t.Errorf("unexpected outputs: %#v", artifact.Outputs)
+		}
+	})
+
+	t.Run("malformed metadata retains a diagnostic", func(t *testing.T) {
+		root := setupProjectDir(t, []string{"my-change"})
+		dir := filepath.Join(root, "openspec", "changes", "my-change")
+		if err := os.WriteFile(filepath.Join(dir, ".openspec.yaml"), []byte("schema: [broken\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "proposal.md"), []byte("# Proposal"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		proj, err := LoadFrom(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ch := proj.Changes[0]
+		if ch.Schema != "" {
+			t.Errorf("expected unknown schema, got %q", ch.Schema)
+		}
+		if ch.Diagnostic == "" {
+			t.Fatal("expected malformed metadata diagnostic")
+		}
+		if _, ok := ch.ArtifactByID("proposal"); !ok {
+			t.Fatal("expected readable proposal despite malformed metadata")
+		}
+	})
+}
+
 func TestReloadChange(t *testing.T) {
 	t.Run("file modified on disk produces updated content", func(t *testing.T) {
 		root := setupProjectDir(t, []string{"my-change"})
@@ -431,6 +545,13 @@ func TestReloadChange(t *testing.T) {
 		}
 		if !reloaded.Tasks.Present {
 			t.Error("expected Tasks to be present")
+		}
+		tasks, ok := reloaded.ArtifactByID("tasks")
+		if !ok || len(tasks.Outputs) != 1 {
+			t.Fatalf("expected one dynamic tasks output, got %#v", tasks)
+		}
+		if tasks.Outputs[0].Content != reloaded.Tasks.Content {
+			t.Errorf("dynamic and compatibility task content differ: %q != %q", tasks.Outputs[0].Content, reloaded.Tasks.Content)
 		}
 	})
 

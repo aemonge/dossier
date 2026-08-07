@@ -1,9 +1,9 @@
 ## 1. Dynamic work model and metadata
 
-- [ ] 1.1 Add failing loader tests for schema metadata, malformed metadata diagnostics, arbitrary artifact IDs, multi-file outputs, dependencies, and artifact status (estimate: 5 hours)
-- [ ] 1.2 Introduce schema-aware `Change`, `ChangeArtifact`, and `ArtifactOutput` structures with project-relative safe identities (estimate: 5 hours)
-- [ ] 1.3 Add failing tests for task progress and existing standard-schema behavior derived through dynamic artifacts rather than fixed fields (estimate: 4 hours)
-- [ ] 1.4 Migrate loader-level task/spec helpers to dynamic artifact capabilities while retaining temporary compatibility at call sites (estimate: 5 hours)
+- [x] 1.1 Add failing loader tests for schema metadata, malformed metadata diagnostics, arbitrary artifact IDs, multi-file outputs, dependencies, and artifact status (estimate: 5 hours)
+- [x] 1.2 Introduce schema-aware `Change`, `ChangeArtifact`, and `ArtifactOutput` structures with project-relative safe identities (estimate: 5 hours)
+- [x] 1.3 Add failing tests for task progress and existing standard-schema behavior derived through dynamic artifacts rather than fixed fields (estimate: 4 hours)
+- [x] 1.4 Migrate loader-level task/spec helpers to dynamic artifact capabilities while retaining temporary compatibility at call sites (estimate: 5 hours)
 
 ## 2. Safe filesystem discovery and archive fallback
 

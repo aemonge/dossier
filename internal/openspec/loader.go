@@ -21,16 +21,63 @@ type NamedSpec struct {
 	Content string
 }
 
+type ArtifactStatus string
+
+const (
+	ArtifactStatusUnknown ArtifactStatus = ""
+	ArtifactStatusBlocked ArtifactStatus = "blocked"
+	ArtifactStatusReady   ArtifactStatus = "ready"
+	ArtifactStatusDone    ArtifactStatus = "done"
+)
+
+type ArtifactSource string
+
+const (
+	ArtifactSourceDiscovered ArtifactSource = "discovered"
+	ArtifactSourceStatus     ArtifactSource = "status"
+)
+
+type ArtifactOutput struct {
+	RelativePath string
+	DisplayName  string
+	Content      string
+	Present      bool
+}
+
+type ChangeArtifact struct {
+	ID            string
+	OutputPattern string
+	Status        ArtifactStatus
+	Requires      []string
+	Outputs       []ArtifactOutput
+	Source        ArtifactSource
+}
+
 type Change struct {
 	Name        string
 	Path        string
 	Created     string
 	DisplayDate string
-	Proposal    Artifact
-	Design      Artifact
-	Tasks       Artifact
-	Specs       Artifact
-	SpecFiles   []NamedSpec
+	Schema      string
+	Diagnostic  string
+	Artifacts   []ChangeArtifact
+
+	// Fixed artifact fields remain temporarily while UI consumers migrate to
+	// Artifacts. loadConventionalArtifacts derives them from the dynamic model.
+	Proposal  Artifact
+	Design    Artifact
+	Tasks     Artifact
+	Specs     Artifact
+	SpecFiles []NamedSpec
+}
+
+func (ch Change) ArtifactByID(id string) (ChangeArtifact, bool) {
+	for _, artifact := range ch.Artifacts {
+		if artifact.ID == id {
+			return artifact, true
+		}
+	}
+	return ChangeArtifact{}, false
 }
 
 type Project struct {
@@ -260,10 +307,8 @@ func (l *Loader) LoadFromPath(path string) (*Project, error) {
 }
 
 func (l *Loader) ReloadChange(ch Change) Change {
-	ch.Proposal = l.loadFile(filepath.Join(ch.Path, "proposal.md"))
-	ch.Design = l.loadFile(filepath.Join(ch.Path, "design.md"))
-	ch.Tasks = l.loadFile(filepath.Join(ch.Path, "tasks.md"))
-	ch.Specs, ch.SpecFiles = l.loadSpecs(filepath.Join(ch.Path, "specs"))
+	l.loadChangeMetadata(&ch)
+	l.loadConventionalArtifacts(&ch)
 	return ch
 }
 
@@ -271,18 +316,123 @@ func (l *Loader) ReloadChange(ch Change) Change {
 
 func (l *Loader) loadChangeFromDir(dir, name, displayDate string) Change {
 	ch := Change{Name: name, Path: dir, DisplayDate: displayDate}
-	if raw, err := l.fs.ReadFile(filepath.Join(dir, ".openspec.yaml")); err == nil {
-		var m openspecMeta
-		// Ignore unmarshal errors: .openspec.yaml is optional metadata,
-		// missing or malformed fields are non-fatal.
-		_ = yaml.Unmarshal(raw, &m)
-		ch.Created = m.Created
-	}
-	ch.Proposal = l.loadFile(filepath.Join(dir, "proposal.md"))
-	ch.Design = l.loadFile(filepath.Join(dir, "design.md"))
-	ch.Tasks = l.loadFile(filepath.Join(dir, "tasks.md"))
-	ch.Specs, ch.SpecFiles = l.loadSpecs(filepath.Join(dir, "specs"))
+	l.loadChangeMetadata(&ch)
+	l.loadConventionalArtifacts(&ch)
 	return ch
+}
+
+func (l *Loader) loadChangeMetadata(ch *Change) {
+	ch.Schema = ""
+	ch.Created = ""
+	ch.Diagnostic = ""
+	raw, err := l.fs.ReadFile(filepath.Join(ch.Path, ".openspec.yaml"))
+	if err != nil {
+		return
+	}
+	var metadata openspecMeta
+	if err := yaml.Unmarshal(raw, &metadata); err != nil {
+		ch.Diagnostic = fmt.Sprintf(".openspec.yaml: %v", err)
+		return
+	}
+	ch.Schema = metadata.Schema
+	ch.Created = metadata.Created
+}
+
+func (l *Loader) loadConventionalArtifacts(ch *Change) {
+	ch.Artifacts = nil
+	if artifact, ok := l.loadDiscoveredFileArtifact(ch.Path, "proposal", "proposal.md"); ok {
+		ch.Artifacts = append(ch.Artifacts, artifact)
+	}
+
+	_, specFiles := l.loadSpecs(filepath.Join(ch.Path, "specs"))
+	if len(specFiles) > 0 {
+		outputs := make([]ArtifactOutput, 0, len(specFiles))
+		for _, spec := range specFiles {
+			outputs = append(outputs, ArtifactOutput{
+				RelativePath: filepath.ToSlash(filepath.Join("specs", spec.Name, "spec.md")),
+				DisplayName:  spec.Name,
+				Content:      spec.Content,
+				Present:      true,
+			})
+		}
+		ch.Artifacts = append(ch.Artifacts, ChangeArtifact{
+			ID:            "specs",
+			OutputPattern: "specs/**/*.md",
+			Status:        ArtifactStatusDone,
+			Outputs:       outputs,
+			Source:        ArtifactSourceDiscovered,
+		})
+	}
+
+	if artifact, ok := l.loadDiscoveredFileArtifact(ch.Path, "design", "design.md"); ok {
+		ch.Artifacts = append(ch.Artifacts, artifact)
+	}
+	if artifact, ok := l.loadDiscoveredFileArtifact(ch.Path, "tasks", "tasks.md"); ok {
+		ch.Artifacts = append(ch.Artifacts, artifact)
+	}
+	deriveConventionalFields(ch)
+}
+
+func (l *Loader) loadDiscoveredFileArtifact(root, id, relativePath string) (ChangeArtifact, bool) {
+	data, err := l.fs.ReadFile(filepath.Join(root, relativePath))
+	if err != nil {
+		return ChangeArtifact{}, false
+	}
+	return discoveredArtifact(id, filepath.ToSlash(relativePath), id, string(data)), true
+}
+
+func deriveConventionalFields(ch *Change) {
+	ch.Proposal = Artifact{}
+	ch.Design = Artifact{}
+	ch.Tasks = Artifact{}
+	ch.Specs = Artifact{}
+	ch.SpecFiles = nil
+	for _, artifact := range ch.Artifacts {
+		switch artifact.ID {
+		case "proposal":
+			ch.Proposal = firstOutputArtifact(artifact)
+		case "design":
+			ch.Design = firstOutputArtifact(artifact)
+		case "tasks":
+			ch.Tasks = firstOutputArtifact(artifact)
+		case "specs":
+			parts := make([]string, 0, len(artifact.Outputs))
+			for _, output := range artifact.Outputs {
+				if !output.Present {
+					continue
+				}
+				ch.SpecFiles = append(ch.SpecFiles, NamedSpec{Name: output.DisplayName, Content: output.Content})
+				parts = append(parts, "# "+output.DisplayName+"\n\n"+output.Content)
+			}
+			if len(parts) > 0 {
+				ch.Specs = Artifact{Content: strings.Join(parts, "\n\n---\n\n"), Present: true}
+			}
+		}
+	}
+}
+
+func firstOutputArtifact(artifact ChangeArtifact) Artifact {
+	for _, output := range artifact.Outputs {
+		if output.Present {
+			return Artifact{Content: output.Content, Present: true}
+		}
+	}
+	return Artifact{}
+}
+
+func discoveredArtifact(id, relativePath, displayName, content string) ChangeArtifact {
+	return ChangeArtifact{
+		ID:            id,
+		OutputPattern: relativePath,
+		Status:        ArtifactStatusDone,
+		Outputs: []ArtifactOutput{{
+			RelativePath: relativePath,
+			DisplayName:  displayName,
+			Content:      content,
+			Present:      true,
+		}},
+		Source: ArtifactSourceDiscovered,
+	}
 }
 
 func (l *Loader) loadFile(path string) Artifact {
