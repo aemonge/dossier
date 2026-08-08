@@ -15,8 +15,13 @@ import (
 var builtinThemes embed.FS
 
 type Config struct {
+	UI    UIConfig    `toml:"ui"`
 	Theme ThemeConfig `toml:"theme"`
 	Keys  KeyConfig   `toml:"keys"`
+}
+
+type UIConfig struct {
+	StartView string `toml:"start_view"`
 }
 
 type ThemeConfig struct {
@@ -79,32 +84,39 @@ type KeyViewer struct {
 	Left         []string `toml:"left"`
 	NextDiff     []string `toml:"next_diff"`
 	PreviousDiff []string `toml:"previous_diff"`
-	ProposalTab  []string `toml:"proposal_tab"`
-	DesignTab    []string `toml:"design_tab"`
-	SpecsTab     []string `toml:"specs_tab"`
-	TasksTab     []string `toml:"tasks_tab"`
-	GitTab       []string `toml:"git_tab"`
-	NextTab      []string `toml:"next_tab"`
-	PreviousTab  []string `toml:"previous_tab"`
-	ViewDiff     []string `toml:"view_diff"`
-	Down         []string `toml:"down"`
-	PageDown     []string `toml:"page_down"`
-	Up           []string `toml:"up"`
-	PageUp       []string `toml:"page_up"`
-	ToggleTask   []string `toml:"toggle_task"`
-	Open         []string `toml:"open"`
+	// Legacy action names are retained for configuration compatibility; the
+	// viewer dispatches them positionally to schema artifacts 1 through 4.
+	ProposalTab []string `toml:"proposal_tab"`
+	DesignTab   []string `toml:"design_tab"`
+	SpecsTab    []string `toml:"specs_tab"`
+	TasksTab    []string `toml:"tasks_tab"`
+	GitTab      []string `toml:"git_tab"`
+	NextTab     []string `toml:"next_tab"`
+	PreviousTab []string `toml:"previous_tab"`
+	ViewDiff    []string `toml:"view_diff"`
+	Down        []string `toml:"down"`
+	PageDown    []string `toml:"page_down"`
+	Up          []string `toml:"up"`
+	PageUp      []string `toml:"page_up"`
+	ToggleTask  []string `toml:"toggle_task"`
+	Open        []string `toml:"open"`
 }
 
 type KeyIndex struct {
-	Filter  []string `toml:"filter"`
-	Info    []string `toml:"info"`
-	Inspect []string `toml:"inspect"`
-	Back    []string `toml:"back"`
-	Down    []string `toml:"down"`
-	Up      []string `toml:"up"`
-	Open    []string `toml:"open"`
-	Toggle  []string `toml:"toggle"`
-	Sort    []string `toml:"sort"`
+	Filter    []string `toml:"filter"`
+	Info      []string `toml:"info"`
+	New       []string `toml:"new"`
+	Lifecycle []string `toml:"lifecycle"`
+	Inspect   []string `toml:"inspect"`
+	Edit      []string `toml:"edit"`
+	Validate  []string `toml:"validate"`
+	Undo      []string `toml:"undo"`
+	Back      []string `toml:"back"`
+	Down      []string `toml:"down"`
+	Up        []string `toml:"up"`
+	Open      []string `toml:"open"`
+	Toggle    []string `toml:"toggle"`
+	Sort      []string `toml:"sort"`
 }
 
 type KeyFilter struct {
@@ -166,7 +178,7 @@ func load(path, selectedKeyStyle string) (Config, string, error) {
 	if err != nil {
 		return Config{}, path, fmt.Errorf("config %s: %w", path, err)
 	}
-	cfg := Config{Theme: ThemeConfig{Base: "none"}, Keys: baseKeys}
+	cfg := Config{UI: UIConfig{StartView: "index"}, Theme: ThemeConfig{Base: "none"}, Keys: baseKeys}
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) && !explicit {
@@ -186,6 +198,12 @@ func load(path, selectedKeyStyle string) (Config, string, error) {
 			names[i] = key.String()
 		}
 		return Config{}, path, fmt.Errorf("config %s: unknown keys: %s", path, strings.Join(names, ", "))
+	}
+	if fileCfg.UI.StartView != "" {
+		cfg.UI.StartView = fileCfg.UI.StartView
+	}
+	if cfg.UI.StartView != "index" && cfg.UI.StartView != "change" {
+		return Config{}, path, fmt.Errorf("config %s: ui.start_view must be \"index\" or \"change\", got %q", path, fileCfg.UI.StartView)
 	}
 	if fileCfg.Theme.Base == "" {
 		fileCfg.Theme.Base = "none"
@@ -300,8 +318,10 @@ func nvimKeys() KeyConfig {
 			ToggleTask: []string{"space"}, Open: []string{"e"},
 		},
 		Index: KeyIndex{
-			Filter: []string{"/"}, Info: []string{"?"}, Inspect: []string{"i"}, Back: []string{"q", "Q", "esc"},
-			Down: []string{"j", "down"}, Up: []string{"k", "up"}, Open: []string{"enter"}, Toggle: []string{"space"}, Sort: []string{"s"},
+			Filter: []string{"/"}, Info: []string{"?"}, New: []string{"n"}, Lifecycle: []string{"a"},
+			Inspect: []string{"i"}, Edit: []string{"e"}, Validate: []string{"v"}, Undo: []string{"u"},
+			Back: []string{"q", "Q", "esc"}, Down: []string{"j", "down"}, Up: []string{"k", "up"},
+			Open: []string{"enter"}, Toggle: []string{"space"}, Sort: []string{"s"},
 		},
 		Filter: KeyFilter{Cancel: []string{"esc"}, Accept: []string{"enter"}, Backspace: []string{"backspace"}},
 		Spec: KeySpec{

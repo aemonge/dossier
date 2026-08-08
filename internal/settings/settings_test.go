@@ -22,6 +22,55 @@ func TestDefaultPathUsesXDGConfigHome(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultsToIndexStartView(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
+
+	cfg, _, err := Load("")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.UI.StartView != "index" {
+		t.Fatalf("default ui.start_view = %q, want index", cfg.UI.StartView)
+	}
+}
+
+func TestLoadAcceptsChangeStartView(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[ui]\nstart_view = \"change\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.UI.StartView != "change" {
+		t.Fatalf("ui.start_view = %q, want change", cfg.UI.StartView)
+	}
+}
+
+func TestLoadRejectsUppercaseStartView(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[ui]\nstart_view = \"INDEX\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "ui.start_view") {
+		t.Fatalf("expected strict start_view error, got %v", err)
+	}
+}
+
+func TestLoadRejectsInvalidStartView(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	if err := os.WriteFile(path, []byte("[ui]\nstart_view = \"dashboard\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "ui.start_view") || !strings.Contains(err.Error(), "index") || !strings.Contains(err.Error(), "change") {
+		t.Fatalf("expected actionable start_view error, got %v", err)
+	}
+}
+
 func TestLoadMissingDefaultReturnsDefaults(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
@@ -221,7 +270,13 @@ func TestDefaultKeysUseNeovimProfile(t *testing.T) {
 		{name: "viewer horizontal", got: append(append([]string{}, keys.Viewer.Left...), keys.Viewer.Right...), want: []string{"H", "left", "L", "right"}},
 		{name: "viewer pages", got: append(append([]string{}, keys.Viewer.PageUp...), keys.Viewer.PageDown...), want: []string{"pgup", "ctrl+u", "pgdown", "ctrl+d"}},
 		{name: "index primary", got: keys.Index.Open, want: []string{"enter"}},
+		{name: "index toggle", got: keys.Index.Toggle, want: []string{"space"}},
+		{name: "index new", got: keys.Index.New, want: []string{"n"}},
+		{name: "index lifecycle", got: keys.Index.Lifecycle, want: []string{"a"}},
 		{name: "index inspect", got: keys.Index.Inspect, want: []string{"i"}},
+		{name: "index edit", got: keys.Index.Edit, want: []string{"e"}},
+		{name: "index validate", got: keys.Index.Validate, want: []string{"v"}},
+		{name: "index undo", got: keys.Index.Undo, want: []string{"u"}},
 		{name: "index back", got: keys.Index.Back, want: []string{"q", "Q", "esc"}},
 		{name: "spec quit", got: keys.Spec.Quit, want: []string{"Q"}},
 		{name: "spec back", got: keys.Spec.Back, want: []string{"q", "esc"}},
@@ -285,8 +340,8 @@ func TestValidateKeysRejectsContextCollision(t *testing.T) {
 
 func TestValidateKeysAllowsReuseAcrossContexts(t *testing.T) {
 	keys := DefaultKeys()
-	keys.Viewer.Down = []string{"n"}
-	keys.Index.Down = []string{"n"}
+	keys.Viewer.Down = []string{"z"}
+	keys.Index.Down = []string{"z"}
 	if err := ValidateKeys(keys); err != nil {
 		t.Fatalf("expected cross-context reuse to be valid: %v", err)
 	}

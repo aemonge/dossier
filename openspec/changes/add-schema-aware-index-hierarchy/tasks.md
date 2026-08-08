@@ -53,31 +53,31 @@
 
 ## 8. Specialized task, spec, editor, and Git behavior
 
-- [ ] 8.1 Add regression tests that active tasks retain cursor/toggle/progress while archived tasks and unknown Markdown remain scroll-only (estimate: 5 hours)
-- [ ] 8.2 Migrate task state and polling from fixed `Change.Tasks` to dynamic tasks artifact/output identity (estimate: 6 hours)
-- [ ] 8.3 Add regression tests for multi-file delta spec subnavigation, selected spec refresh, and canonical requirement focus (estimate: 5 hours)
-- [ ] 8.4 Migrate spec subnavigation and focus helpers to dynamic multi-file outputs (estimate: 6 hours)
-- [ ] 8.5 Add editor tests for dynamic active outputs, unavailable outputs, archived rejection, return refresh, and safe resolved paths (estimate: 4 hours)
-- [ ] 8.6 Migrate editor launch/return cache invalidation to artifact-output identity (estimate: 4 hours)
-- [ ] 8.7 Add Git regression tests and keep code as a synthetic active-only destination outside schema artifacts/progress (estimate: 4 hours)
+- [x] 8.1 Add regression tests that active tasks retain cursor/toggle/progress while archived tasks and unknown Markdown remain scroll-only (estimate: 5 hours)
+- [x] 8.2 Migrate task state and polling from fixed `Change.Tasks` to dynamic tasks artifact/output identity (estimate: 6 hours)
+- [x] 8.3 Add regression tests for multi-file delta spec subnavigation, selected spec refresh, and canonical requirement focus (estimate: 5 hours)
+- [x] 8.4 Migrate spec subnavigation and focus helpers to dynamic multi-file outputs (estimate: 6 hours)
+- [x] 8.5 Add editor tests for dynamic active outputs, unavailable outputs, archived rejection, return refresh, and safe resolved paths (estimate: 4 hours)
+- [x] 8.6 Migrate editor launch/return cache invalidation to artifact-output identity (estimate: 4 hours)
+- [x] 8.7 Add Git regression tests and keep code as a synthetic active-only destination outside schema artifacts/progress (estimate: 4 hours)
 
 ## 9. Archive and explicit-path viewers
 
-- [ ] 9.1 Add UI tests for archived feature/bugfix/spike navigation, unavailable schema fallback, dynamic help, and read-only task/editor behavior (estimate: 5 hours)
-- [ ] 9.2 Migrate archive viewer navigation/rendering to dynamic discovered artifacts (estimate: 5 hours)
-- [ ] 9.3 Add CLI/model tests for explicit active/archived custom-schema paths, degraded fallback, and selected-change-only polling (estimate: 5 hours)
-- [ ] 9.4 Migrate single-path construction and polling to the schema-aware model without sibling scans (estimate: 5 hours)
+- [x] 9.1 Add UI tests for archived feature/bugfix/spike navigation, unavailable schema fallback, dynamic help, and read-only task/editor behavior (estimate: 5 hours)
+- [x] 9.2 Migrate archive viewer navigation/rendering to dynamic discovered artifacts (estimate: 5 hours)
+- [x] 9.3 Add CLI/model tests for explicit active/archived custom-schema paths, degraded fallback, and selected-change-only polling (estimate: 5 hours)
+- [x] 9.4 Migrate single-path construction and polling to the schema-aware model without sibling scans (estimate: 5 hours)
 
 ## 10. Remove fixed assumptions and integrate dependent change
 
-- [ ] 10.1 Search production/tests for fixed `Proposal`, `Design`, `Tasks`, `Specs`, `SpecFiles`, fixed tab constants, and `1-4` assumptions; classify every remaining use (estimate: 3 hours)
-- [ ] 10.2 Remove temporary fixed-artifact compatibility fields/helpers and update remaining tests to dynamic fixtures (estimate: 7 hours)
-- [ ] 10.3 Update `add-index-workflow-actions` to depend on hierarchy identities and use the schema catalog during new-change creation (estimate: 5 hours)
-- [ ] 10.4 Verify no Taskflow integration or schema-pack installation entered scope; capture either as separate follow-up changes if desired (estimate: 2 hours)
+- [x] 10.1 Search production/tests for fixed `Proposal`, `Design`, `Tasks`, `Specs`, `SpecFiles`, fixed tab constants, and `1-4` assumptions; classify every remaining use (estimate: 3 hours)
+- [x] 10.2 Remove temporary fixed-artifact compatibility fields/helpers and update remaining tests to dynamic fixtures (estimate: 7 hours)
+- [x] 10.3 Update `add-index-workflow-actions` to depend on hierarchy identities and use the schema catalog during new-change creation (estimate: 5 hours)
+- [x] 10.4 Verify no Taskflow integration or schema-pack installation entered scope; capture either as separate follow-up changes if desired (estimate: 2 hours)
 
 ## 11. Documentation and verification
 
-- [ ] 11.1 Update README with the OpenSpec hierarchy, canonical-vs-delta specs, schema badges, expansion/inspect controls, dynamic artifacts, and degraded mode (estimate: 4 hours)
-- [ ] 11.2 Add test fixtures/documentation for at least spec-driven, bugfix, spike, task-only, multi-file, missing-schema, and archived workflows (estimate: 4 hours)
-- [ ] 11.3 Run strict OpenSpec validation, `make fmt`, focused and full race tests, `make lint`, `go vet ./...`, and `make build`; resolve and record all failures (estimate: 5 hours)
-- [ ] 11.4 Review implementation against every hierarchy scenario and verify the old flat/fixed model is no longer observable (estimate: 4 hours)
+- [x] 11.1 Update README with the OpenSpec hierarchy, canonical-vs-delta specs, schema badges, expansion/inspect controls, dynamic artifacts, and degraded mode (estimate: 4 hours)
+- [x] 11.2 Add test fixtures/documentation for at least spec-driven, bugfix, spike, task-only, multi-file, missing-schema, and archived workflows (estimate: 4 hours)
+- [x] 11.3 Run strict OpenSpec validation, `make fmt`, focused and full race tests, `make lint`, `go vet ./...`, and `make build`; resolve and record all failures (estimate: 5 hours)
+- [x] 11.4 Review implementation against every hierarchy scenario and verify the old flat/fixed model is no longer observable (estimate: 4 hours)

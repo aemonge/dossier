@@ -74,6 +74,25 @@ type StatusArtifact struct {
 	Requires   []string `json:"requires"`
 }
 
+type CreateChangeResult struct {
+	Name   string
+	Schema string
+	Path   string
+}
+
+type ValidationResult struct {
+	Valid   bool
+	Summary string
+	Errors  []string
+}
+
+type ArchiveResult struct {
+	ChangeName   string
+	ArchivedAs   string
+	ArchivePath  string
+	SpecsUpdated bool
+}
+
 type ChangeStatus struct {
 	ChangeName    string                        `json:"changeName"`
 	SchemaName    string                        `json:"schemaName"`
@@ -114,6 +133,86 @@ func (c *CLI) Schemas(root string) ([]SchemaInfo, error) {
 	return schemas, nil
 }
 
+func (c *CLI) CreateChange(root, name, schema string) (CreateChangeResult, error) {
+	args := []string{"new", "change", name, "--schema", schema, "--json"}
+	var response struct {
+		Change struct {
+			ID     string `json:"id"`
+			Path   string `json:"path"`
+			Schema string `json:"schema"`
+		} `json:"change"`
+	}
+	if err := c.runJSON(root, args, &response); err != nil {
+		return CreateChangeResult{}, err
+	}
+	if response.Change.ID == "" {
+		return CreateChangeResult{}, fmt.Errorf("decode openspec %s: missing change.id", strings.Join(args, " "))
+	}
+	return CreateChangeResult{Name: response.Change.ID, Schema: response.Change.Schema, Path: response.Change.Path}, nil
+}
+
+func (c *CLI) Validate(root, name, kind string) (ValidationResult, error) {
+	if kind != "change" && kind != "spec" {
+		return ValidationResult{}, fmt.Errorf("invalid OpenSpec validation type %q", kind)
+	}
+	args := []string{"validate", name, "--type", kind, "--json", "--no-interactive"}
+	var response struct {
+		Items []struct {
+			ID     string `json:"id"`
+			Type   string `json:"type"`
+			Valid  bool   `json:"valid"`
+			Issues []struct {
+				Level   string `json:"level"`
+				Path    string `json:"path"`
+				Message string `json:"message"`
+			} `json:"issues"`
+		} `json:"items"`
+	}
+	if err := c.runJSON(root, args, &response); err != nil {
+		return ValidationResult{}, err
+	}
+	if len(response.Items) != 1 {
+		return ValidationResult{}, fmt.Errorf("decode openspec %s: expected one validation item, got %d", strings.Join(args, " "), len(response.Items))
+	}
+	item := response.Items[0]
+	result := ValidationResult{Valid: item.Valid}
+	for _, issue := range item.Issues {
+		message := issue.Message
+		if issue.Path != "" {
+			message = issue.Path + ": " + message
+		}
+		if issue.Level != "" {
+			message = issue.Level + " " + message
+		}
+		result.Errors = append(result.Errors, message)
+	}
+	if result.Valid {
+		result.Summary = fmt.Sprintf("%s %s is valid", kind, name)
+	} else {
+		result.Summary = fmt.Sprintf("%s %s has %d validation issue(s)", kind, name, len(result.Errors))
+	}
+	return result, nil
+}
+
+func (c *CLI) Archive(root, changeName string) (ArchiveResult, error) {
+	args := []string{"archive", changeName, "--yes", "--json"}
+	var response struct {
+		Archive struct {
+			Change       string `json:"change"`
+			ArchivedAs   string `json:"archivedAs"`
+			Path         string `json:"path"`
+			SpecsUpdated bool   `json:"specsUpdated"`
+		} `json:"archive"`
+	}
+	if err := c.runJSON(root, args, &response); err != nil {
+		return ArchiveResult{}, err
+	}
+	if response.Archive.Path == "" {
+		return ArchiveResult{}, fmt.Errorf("decode openspec %s: missing archive.path", strings.Join(args, " "))
+	}
+	return ArchiveResult{ChangeName: response.Archive.Change, ArchivedAs: response.Archive.ArchivedAs, ArchivePath: response.Archive.Path, SpecsUpdated: response.Archive.SpecsUpdated}, nil
+}
+
 func (c *CLI) Status(root, changeName string) (ChangeStatus, error) {
 	args := []string{"status", "--change", changeName, "--json"}
 	stdout, err := c.run(root, args)
@@ -125,6 +224,17 @@ func (c *CLI) Status(root, changeName string) (ChangeStatus, error) {
 		return ChangeStatus{}, fmt.Errorf("decode openspec %s: %w", strings.Join(args, " "), err)
 	}
 	return status, nil
+}
+
+func (c *CLI) runJSON(root string, args []string, target any) error {
+	stdout, err := c.run(root, args)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(stdout, target); err != nil {
+		return fmt.Errorf("decode openspec %s: %w", strings.Join(args, " "), err)
+	}
+	return nil
 }
 
 func (c *CLI) run(root string, args []string) ([]byte, error) {
@@ -201,7 +311,6 @@ func (l *Loader) EnrichChange(ch Change, status ChangeStatus) Change {
 			ch.Artifacts = append(ch.Artifacts, artifact)
 		}
 	}
-	deriveConventionalFields(&ch)
 	return ch
 }
 

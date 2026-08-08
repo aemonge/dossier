@@ -70,8 +70,7 @@ func TestDynamicViewerKeyNavigationUsesSchemaPositions(t *testing.T) {
 	change := dynamicViewerChange()
 	m := Model{
 		mode: ModeNormal, project: &openspec.Project{Changes: []openspec.Change{change}},
-		keyMap: settings.DefaultKeys(), renderCache: make(map[Tab]string),
-		artifactRenderCache: make(map[artifactOutputIdentity]string),
+		keyMap: settings.DefaultKeys(), artifactRenderCache: make(map[artifactOutputIdentity]string),
 	}
 	m.selectDefaultArtifact()
 	result, _ := m.updateViewer(tea.KeyPressMsg{Text: "l"})
@@ -118,6 +117,16 @@ func TestDynamicViewerReconcilesOutputInsertionAndRemovalByIdentity(t *testing.T
 	}
 }
 
+func TestDynamicViewerHeaderShowsWorkflowSchema(t *testing.T) {
+	change := dynamicViewerChange()
+	change.Schema = "feature"
+	m := Model{mode: ModeNormal, width: 100, project: &openspec.Project{Name: "project", Changes: []openspec.Change{change}}}
+	header := m.renderHeader()
+	if !strings.Contains(header, "[feature]") {
+		t.Fatalf("workflow schema missing from header: %q", header)
+	}
+}
+
 func TestDynamicViewerTabBarUsesArtifactIDsAndStatuses(t *testing.T) {
 	change := dynamicViewerChange()
 	m := Model{
@@ -142,7 +151,7 @@ func TestHierarchyInspectOpensExactDynamicOutput(t *testing.T) {
 			ExpandedSpecs: make(map[int]bool), ExpandedChanges: map[string]bool{"active:fix-cache": true},
 			ExpandedArtifacts: map[string]bool{"active:fix-cache:artifact:specs": true},
 		},
-		renderCache: make(map[Tab]string), artifactRenderCache: make(map[artifactOutputIdentity]string),
+		artifactRenderCache: make(map[artifactOutputIdentity]string),
 	}
 	m.buildIndexItems()
 	identity := "active:fix-cache:artifact:specs:output:specs/storage/spec.md"
@@ -171,6 +180,19 @@ func TestDynamicViewerMouseSelectsSchemaArtifact(t *testing.T) {
 	m = result.(Model)
 	if got := m.artifactSelection.ArtifactID; got != "reproduction" {
 		t.Fatalf("mouse selected %q, want reproduction", got)
+	}
+}
+
+func TestMergeReloadedChangeChoosesNearestArtifactAfterRemoval(t *testing.T) {
+	change := dynamicViewerChange()
+	m := Model{mode: ModeNormal, project: &openspec.Project{Changes: []openspec.Change{change}}, artifactRenderCache: make(map[artifactOutputIdentity]string)}
+	m.selectArtifactOutput("specs", "specs/storage/spec.md")
+	fresh := change
+	fresh.Artifacts = append([]openspec.ChangeArtifact(nil), change.Artifacts[:3]...)
+	fresh.Artifacts = append(fresh.Artifacts, change.Artifacts[4])
+	m.mergeReloadedChange(fresh)
+	if m.artifactSelection.ArtifactID != "tasks" {
+		t.Fatalf("nearest surviving artifact = %+v, want tasks", m.artifactSelection)
 	}
 }
 

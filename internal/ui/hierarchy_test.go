@@ -152,7 +152,7 @@ func TestRebuildHierarchyPreservesCursorIdentity(t *testing.T) {
 
 func TestRenderHierarchyDisambiguatesAndAlignsPlanningStatus(t *testing.T) {
 	change := hierarchyChange("add-index-workflow-actions", "spec-driven")
-	change.Tasks = openspec.Artifact{Present: true, Content: "- [ ] implement behavior\n"}
+	change.Artifacts[2].Outputs = []openspec.ArtifactOutput{{RelativePath: "tasks.md", Content: "- [ ] implement behavior\n", Present: true}}
 	m := &Model{
 		project: &openspec.Project{Changes: []openspec.Change{change}},
 		index: indexState{
@@ -229,9 +229,9 @@ func TestRenderArtifactRowsAlignDependencyColumn(t *testing.T) {
 
 func TestRenderActiveRowsUseStableTableColumns(t *testing.T) {
 	first := hierarchyChange("add-index-workflow-actions", "spec-driven")
-	first.Tasks = openspec.Artifact{Present: true, Content: "- [ ] one\n"}
+	first.Artifacts[2].Outputs = []openspec.ArtifactOutput{{RelativePath: "tasks.md", Content: "- [ ] one\n", Present: true}}
 	second := hierarchyChange("add-custom-themes", "spec-driven")
-	second.Tasks = openspec.Artifact{Present: true, Content: strings.Repeat("- [x] done\n", 9) + "- [ ] ten\n"}
+	second.Artifacts[2].Outputs = []openspec.ArtifactOutput{{RelativePath: "tasks.md", Content: strings.Repeat("- [x] done\n", 9) + "- [ ] ten\n", Present: true}}
 	m := &Model{
 		project: &openspec.Project{Changes: []openspec.Change{first, second}},
 		index: indexState{

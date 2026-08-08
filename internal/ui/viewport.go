@@ -20,9 +20,9 @@ func (m *Model) loadViewport() tea.Cmd {
 		return m.loadViewportForConfig()
 	case m.mode == ModeViewingSpec:
 		return m.loadViewportForSpec()
-	case m.tab == TabTasks && m.mode == ModeNormal && m.artifactSelection.ArtifactID == "tasks" && m.artifactSelection.OutputPath != "":
+	case m.mode == ModeNormal && m.isTasksView() && m.artifactSelection.OutputPath != "":
 		return m.loadViewportForTasks()
-	case m.tab == TabGit && m.mode == ModeNormal:
+	case m.viewingCode && m.mode == ModeNormal:
 		return m.loadViewportForGit()
 	default:
 		return m.loadViewportForArtifact()
@@ -173,52 +173,8 @@ func (m *Model) loadViewportForArtifact() tea.Cmd {
 		}
 	}
 
-	if cached, ok := m.renderCache[m.tab]; ok {
-		m.vp.SetContent(cached)
-		return nil
-	}
-
-	ch := m.current()
-	if ch == nil {
-		m.vp.SetContent("")
-		return nil
-	}
-	var raw string
-	switch m.tab {
-	case TabProposal:
-		raw = ch.Proposal.Content
-	case TabDesign:
-		raw = ch.Design.Content
-	case TabSpecs:
-		if m.specIdx < len(ch.SpecFiles) {
-			raw = ch.SpecFiles[m.specIdx].Content
-		}
-	case TabTasks:
-		raw = ch.Tasks.Content
-	}
-	if raw == "" {
-		m.vp.SetContent("  (artifact not available)")
-		return nil
-	}
-
-	m.loading = true
-	m.vp.SetContent("")
-
-	tab := m.tab
-	width := m.renderWidth()
-	m.ensureRenderer(width)
-	if m.glamourRenderer == nil {
-		return func() tea.Msg {
-			return renderedMsg{tab: tab, content: raw}
-		}
-	}
-	return func() tea.Msg {
-		out, err := m.glamourRenderer.Render(raw)
-		if err != nil {
-			return renderedMsg{tab: tab, content: raw}
-		}
-		return renderedMsg{tab: tab, content: out}
-	}
+	m.vp.SetContent("  (artifact not available)")
+	return nil
 }
 
 func (m *Model) renderWidth() int {

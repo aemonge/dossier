@@ -11,16 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type Artifact struct {
-	Content string
-	Present bool
-}
-
-type NamedSpec struct {
-	Name    string
-	Content string
-}
-
 type ArtifactStatus string
 
 const (
@@ -61,14 +51,6 @@ type Change struct {
 	Schema      string
 	Diagnostic  string
 	Artifacts   []ChangeArtifact
-
-	// Fixed artifact fields remain temporarily while UI consumers migrate to
-	// Artifacts. loadDiscoveredArtifacts derives them from the dynamic model.
-	Proposal  Artifact
-	Design    Artifact
-	Tasks     Artifact
-	Specs     Artifact
-	SpecFiles []NamedSpec
 }
 
 func (ch Change) ArtifactByID(id string) (ChangeArtifact, bool) {
@@ -376,7 +358,6 @@ func (l *Loader) loadDiscoveredArtifacts(ch *Change) {
 			Source:        ArtifactSourceDiscovered,
 		})
 	}
-	deriveConventionalFields(ch)
 }
 
 func (l *Loader) discoverMarkdownOutputs(root string) ([]ArtifactOutput, []string) {
@@ -495,45 +476,6 @@ func displayRelativePath(path string) string {
 		return "."
 	}
 	return path
-}
-
-func deriveConventionalFields(ch *Change) {
-	ch.Proposal = Artifact{}
-	ch.Design = Artifact{}
-	ch.Tasks = Artifact{}
-	ch.Specs = Artifact{}
-	ch.SpecFiles = nil
-	for _, artifact := range ch.Artifacts {
-		switch artifact.ID {
-		case "proposal":
-			ch.Proposal = firstOutputArtifact(artifact)
-		case "design":
-			ch.Design = firstOutputArtifact(artifact)
-		case "tasks":
-			ch.Tasks = firstOutputArtifact(artifact)
-		case "specs":
-			parts := make([]string, 0, len(artifact.Outputs))
-			for _, output := range artifact.Outputs {
-				if !output.Present {
-					continue
-				}
-				ch.SpecFiles = append(ch.SpecFiles, NamedSpec{Name: output.DisplayName, Content: output.Content})
-				parts = append(parts, "# "+output.DisplayName+"\n\n"+output.Content)
-			}
-			if len(parts) > 0 {
-				ch.Specs = Artifact{Content: strings.Join(parts, "\n\n---\n\n"), Present: true}
-			}
-		}
-	}
-}
-
-func firstOutputArtifact(artifact ChangeArtifact) Artifact {
-	for _, output := range artifact.Outputs {
-		if output.Present {
-			return Artifact{Content: output.Content, Present: true}
-		}
-	}
-	return Artifact{}
 }
 
 func parseArchiveName(dir string) (name, date string) {

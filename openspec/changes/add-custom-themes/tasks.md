@@ -15,7 +15,7 @@
 
 - [x] 3.1 Add `--config`, XDG startup loading, and CLI/config precedence tests
 - [x] 3.2 Add a complete documented light-terminal example configuration
-- [ ] 3.3 Run OpenSpec validation, formatting, lint, race/coverage tests, vet, and build
+- [x] 3.3 Run OpenSpec validation, formatting, lint, race/coverage tests, vet, and build
 
 ## Estimate
 

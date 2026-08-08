@@ -141,7 +141,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		model = ui.New(project, cfg, cwd, loader, theme, appConfig.Keys, opts.readOnly)
+		model = ui.NewWithStartView(project, cfg, cwd, loader, theme, appConfig.Keys, opts.readOnly, appConfig.UI.StartView)
 	}
 
 	p := tea.NewProgram(model)

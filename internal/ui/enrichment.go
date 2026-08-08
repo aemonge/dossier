@@ -65,7 +65,7 @@ func changeDiscoveryFingerprint(change openspec.Change) string {
 }
 
 func (m *Model) scheduleStatusEnrichment() tea.Cmd {
-	if m.openSpec == nil || m.project == nil || m.singlePath {
+	if m.openSpec == nil || m.project == nil || m.singlePath && m.mode != ModeNormal {
 		return nil
 	}
 	if m.discoveryFingerprints == nil {

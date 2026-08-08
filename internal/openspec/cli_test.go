@@ -60,6 +60,71 @@ func TestCLISchemas(t *testing.T) {
 	}
 }
 
+func TestCLICreateChange(t *testing.T) {
+	runner := &fakeOpenSpecRunner{stdout: []byte(`{"change":{"id":"fix-cache","path":"/project/openspec/changes/fix-cache","schema":"bugfix"},"root":{"path":"/project"}}`)}
+	result, err := NewCLI(runner).CreateChange("/project", "fix-cache", "bugfix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runner.dir != "/project" || strings.Join(runner.args, " ") != "new change fix-cache --schema bugfix --json" {
+		t.Fatalf("unexpected command: dir=%q args=%v", runner.dir, runner.args)
+	}
+	if result.Name != "fix-cache" || result.Schema != "bugfix" {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
+func TestCLIValidate(t *testing.T) {
+	for _, kind := range []string{"change", "spec"} {
+		t.Run(kind, func(t *testing.T) {
+			runner := &fakeOpenSpecRunner{stdout: []byte(`{"items":[{"id":"target","type":"` + kind + `","valid":true,"issues":[]}],"summary":{"totals":{"items":1,"passed":1,"failed":0}},"version":"1.0"}`)}
+			result, err := NewCLI(runner).Validate("/project", "target", kind)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(runner.args, " ") != "validate target --type "+kind+" --json --no-interactive" {
+				t.Fatalf("unexpected args: %v", runner.args)
+			}
+			if !result.Valid || !strings.Contains(result.Summary, "is valid") {
+				t.Fatalf("unexpected result: %#v", result)
+			}
+		})
+	}
+}
+
+func TestCLIValidateReturnsActionableIssues(t *testing.T) {
+	runner := &fakeOpenSpecRunner{stdout: []byte(`{"items":[{"id":"target","type":"change","valid":false,"issues":[{"level":"ERROR","path":"file","message":"missing delta"}]}],"summary":{"totals":{"items":1,"passed":0,"failed":1}},"version":"1.0"}`)}
+	result, err := NewCLI(runner).Validate("/project", "target", "change")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Valid || len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "missing delta") {
+		t.Fatalf("unexpected invalid result: %#v", result)
+	}
+}
+
+func TestCLIArchive(t *testing.T) {
+	runner := &fakeOpenSpecRunner{stdout: []byte(`{"archive":{"change":"fix-cache","archivedAs":"2026-08-08-fix-cache","path":"/project/openspec/changes/archive/2026-08-08-fix-cache","specsUpdated":true},"root":{"path":"/project"}}`)}
+	result, err := NewCLI(runner).Archive("/project", "fix-cache")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(runner.args, " ") != "archive fix-cache --yes --json" {
+		t.Fatalf("unexpected args: %v", runner.args)
+	}
+	if result.ChangeName != "fix-cache" || !strings.Contains(result.ArchivePath, "2026-08-08-fix-cache") {
+		t.Fatalf("unexpected result: %#v", result)
+	}
+}
+
+func TestCLIActionMalformedJSONIdentifiesCommand(t *testing.T) {
+	runner := &fakeOpenSpecRunner{stdout: []byte(`not-json`)}
+	_, err := NewCLI(runner).Archive("/project", "fix-cache")
+	if err == nil || !strings.Contains(err.Error(), "decode openspec archive fix-cache --yes --json") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestCLIStatus(t *testing.T) {
 	runner := &fakeOpenSpecRunner{stdout: []byte(`{
   "changeName":"fix-cache",

@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"os"
 	"path/filepath"
 	"time"
 
@@ -23,26 +22,11 @@ const (
 	ModeViewingConfig
 )
 
-type Tab int
-
-const (
-	TabProposal Tab = iota
-	TabDesign
-	TabSpecs
-	TabTasks
-	TabGit
-	tabCount
-)
-
-var tabLabels = [tabCount]string{"proposal", "design", "specs", "tasks", "code"}
-
 type errClearMsg struct{}
-type editorReturnMsg struct{}
-
-// renderedMsg carries async glamour output back to the event loop.
-type renderedMsg struct {
-	tab     Tab
-	content string
+type indexStatusClearMsg string
+type editorReturnMsg struct {
+	indexIdentity    string
+	artifactIdentity artifactOutputIdentity
 }
 
 // specRenderedMsg carries async glamour output for ModeViewingSpec.
@@ -57,6 +41,51 @@ type renderedConfigMsg struct {
 }
 
 type tickMsg time.Time
+
+type indexActionMode int
+
+const (
+	indexActionIdle indexActionMode = iota
+	indexActionSchema
+	indexActionName
+	indexActionConfirmArchive
+	indexActionConfirmReactivate
+	indexActionConfirmUndo
+	indexActionPending
+)
+
+type indexOperation int
+
+const (
+	indexOperationNone indexOperation = iota
+	indexOperationCreate
+	indexOperationValidate
+	indexOperationArchive
+	indexOperationReactivate
+	indexOperationUndo
+)
+
+type indexActionState struct {
+	Mode           indexActionMode
+	Operation      indexOperation
+	Schema         string
+	SchemaCursor   int
+	SchemaFilter   string
+	Name           string
+	TargetIdentity string
+	Status         string
+	StatusError    bool
+}
+
+type indexActionResultMsg struct {
+	Kind           indexOperation
+	Name           string
+	TargetIdentity string
+	Validation     openspec.ValidationResult
+	Archive        openspec.ArchiveResult
+	Undo           *openspec.LifecycleUndo
+	Err            error
+}
 
 type indexState struct {
 	Items             []indexItem
@@ -74,6 +103,7 @@ type indexState struct {
 	FilterActive   bool
 	FilterIndices  []int
 	PrevFilterText string
+	Action         indexActionState
 }
 
 type specViewerState struct {
@@ -139,11 +169,12 @@ type Model struct {
 
 	project           *openspec.Project
 	changeIdx         int
-	tab               Tab // compatibility capability marker until Slice 8 completes
 	artifactSelection artifactSelection
 	viewingCode       bool
 
 	openSpec              openSpecClient
+	lifecycle             *openspec.LifecycleService
+	lifecycleUndo         *openspec.LifecycleUndo
 	schemaCatalog         []openspec.SchemaInfo
 	schemaCatalogErr      string
 	discoveryFingerprints map[string]string
@@ -156,8 +187,6 @@ type Model struct {
 
 	tasks taskState
 
-	specIdx int
-
 	errMsg     string
 	loading    bool
 	singlePath bool
@@ -169,7 +198,6 @@ type Model struct {
 
 	width, height int
 
-	renderCache         map[Tab]string // compatibility cache for specialized Slice 8 views
 	artifactRenderCache map[artifactOutputIdentity]string
 	glamourRenderer     *glamour.TermRenderer
 	lastRenderWidth     int
@@ -186,21 +214,30 @@ type Model struct {
 }
 
 func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
+	return NewWithStartView(project, cfg, root, loader, theme, keyMap, readOnly, "index")
+}
+
+func NewWithStartView(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool, startView string) Model {
+	return newModel(project, cfg, root, loader, theme, keyMap, readOnly, startView, false)
+}
+
+func newModel(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool, startView string, singlePath bool) Model {
 	m := Model{
 		root:                  root,
 		loader:                loader,
 		project:               project,
 		openSpec:              openspec.NewOSCLI(),
+		lifecycle:             openspec.NewLifecycleService(root, openspec.NewOSCLI()),
 		discoveryFingerprints: discoveryFingerprints(project.Changes),
 		enrichedFingerprints:  make(map[string]string),
 		pendingEnrichments:    make(map[string]string),
 		enrichmentRetryAfter:  make(map[string]time.Time),
-		renderCache:           make(map[Tab]string),
 		artifactRenderCache:   make(map[artifactOutputIdentity]string),
 		projectConfig:         cfg,
 		theme:                 theme,
 		keyMap:                keyMap,
 		readOnly:              readOnly,
+		singlePath:            singlePath,
 		isGitRepo:             git.IsInsideWorkTree(root),
 	}
 	if m.isGitRepo {
@@ -212,10 +249,10 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 	}
 	m.pollGitStatus()
 	if len(project.Changes) > 0 {
-		m.tab = m.defaultTab()
 		m.selectDefaultArtifact()
 		m.loadTaskItems()
-	} else {
+	}
+	if !singlePath && (startView == "index" || len(project.Changes) == 0) {
 		var archiveErr error
 		m.index.ArchiveChanges, archiveErr = loader.ListArchiveChangesFrom(root)
 		if archiveErr != nil {
@@ -234,8 +271,13 @@ func New(project *openspec.Project, cfg openspec.ProjectConfig, root string, loa
 }
 
 func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
-	m := New(project, cfg, root, loader, theme, keyMap, readOnly)
-	m.singlePath = true
+	m := newModel(project, cfg, root, loader, theme, keyMap, readOnly, "change", true)
+	if filepath.Base(filepath.Dir(filepath.Clean(root))) == "archive" && len(project.Changes) > 0 {
+		m.index.ArchiveChanges = append([]openspec.Change(nil), project.Changes...)
+		m.index.ArchiveCursor = 0
+		m.mode = ModeViewingArchive
+		m.selectDefaultArtifact()
+	}
 	return m
 }
 
@@ -284,100 +326,6 @@ func (m *Model) current() *openspec.Change {
 	return &m.project.Changes[m.changeIdx]
 }
 
-func firstAvailableTab(ch openspec.Change) Tab {
-	if ch.Proposal.Present {
-		return TabProposal
-	}
-	if ch.Design.Present {
-		return TabDesign
-	}
-	if ch.Specs.Present {
-		return TabSpecs
-	}
-	if ch.Tasks.Present {
-		return TabTasks
-	}
-	return TabProposal
-}
-
-func (m *Model) tabAvailable(t Tab) bool {
-	ch := m.current()
-	if ch == nil {
-		return false
-	}
-	switch t {
-	case TabProposal:
-		return ch.Proposal.Present
-	case TabDesign:
-		return ch.Design.Present
-	case TabTasks:
-		return ch.Tasks.Present
-	case TabSpecs:
-		return ch.Specs.Present
-	case TabGit:
-		return m.isGitRepo && m.mode == ModeNormal && len(m.gitState.Files) > 0
-	}
-	return false
-}
-
-func (m *Model) defaultTab() Tab {
-	for t := Tab(0); t < tabCount; t++ {
-		if m.tabAvailable(t) {
-			return t
-		}
-	}
-	return TabProposal
-}
-
-func (m *Model) nextAvailableTab(current Tab, delta int) Tab {
-	next := current
-	for range int(tabCount) {
-		next = Tab((int(next) + delta + int(tabCount)) % int(tabCount))
-		if m.tabAvailable(next) {
-			return next
-		}
-	}
-	return current
-}
-
-func (m *Model) artifactPath() string {
-	ch := m.current()
-	if ch == nil {
-		return ""
-	}
-	switch m.tab {
-	case TabProposal:
-		return filepath.Join(ch.Path, "proposal.md")
-	case TabDesign:
-		return filepath.Join(ch.Path, "design.md")
-	case TabTasks:
-		return filepath.Join(ch.Path, "tasks.md")
-	case TabSpecs:
-		if m.specIdx < len(ch.SpecFiles) {
-			specsDir := filepath.Join(ch.Path, "specs")
-			entries, err := os.ReadDir(specsDir)
-			if err != nil {
-				return ""
-			}
-			dirIdx := 0
-			for _, e := range entries {
-				if !e.IsDir() {
-					continue
-				}
-				if dirIdx == m.specIdx {
-					p := filepath.Join(specsDir, e.Name(), "spec.md")
-					if _, err := os.Stat(p); err == nil {
-						return p
-					}
-					return ""
-				}
-				dirIdx++
-			}
-		}
-	}
-	return ""
-}
-
 func (m *Model) currentArchive() *openspec.Change {
 	if m.index.ArchiveCursor < len(m.index.ArchiveChanges) {
 		return &m.index.ArchiveChanges[m.index.ArchiveCursor]
@@ -413,44 +361,37 @@ func (m *Model) contentHeight() int {
 	return h
 }
 
-// mergeReloadedChange updates in-memory state from a freshly reloaded Change
-// and returns which artifacts changed. It does not handle cursor preservation
-// or viewport refresh — the caller handles those.
+// mergeReloadedChange updates the selected active change from dynamic artifact
+// outputs while preserving the selected artifact/output identity when possible.
 func (m *Model) mergeReloadedChange(fresh openspec.Change) (tasksChanged bool, viewportDirty bool) {
 	ch := m.current()
-	if ch == nil {
+	if ch == nil || m.mode != ModeNormal || m.changeIdx < 0 || m.changeIdx >= len(m.project.Changes) {
 		return false, false
 	}
+	oldFingerprint := changeDiscoveryFingerprint(*ch)
+	newFingerprint := changeDiscoveryFingerprint(fresh)
+	if oldFingerprint == newFingerprint {
+		return false, false
+	}
+	_, oldTasks, _ := artifactOutputByID(ch, "tasks")
+	_, newTasks, _ := artifactOutputByID(&fresh, "tasks")
+	oldTaskContent, newTaskContent := "", ""
+	if oldTasks != nil {
+		oldTaskContent = oldTasks.Content
+	}
+	if newTasks != nil {
+		newTaskContent = newTasks.Content
+	}
+	tasksChanged = oldTaskContent != newTaskContent
 
-	if fresh.Tasks.Present != ch.Tasks.Present || fresh.Tasks.Content != ch.Tasks.Content {
-		m.project.Changes[m.changeIdx].Tasks = fresh.Tasks
-		m.tasks.Items = openspec.ParseTasks(fresh.Tasks.Content)
-		tasksChanged = true
+	selectedBefore := m.artifactSelection
+	oldArtifactIndex, oldOutputIndex := artifactSelectionPosition(ch, selectedBefore)
+	m.project.Changes[m.changeIdx] = fresh
+	m.invalidateArtifactRenderCache(fresh.Name)
+	m.reconcileArtifactSelectionNear(oldArtifactIndex, oldOutputIndex)
+	viewportDirty = !m.viewingCode && (selectedBefore != m.artifactSelection || oldFingerprint != newFingerprint)
+	if tasksChanged {
+		m.tasks.Items = openspec.ParseTasks(newTaskContent)
 	}
-	if fresh.Proposal.Present != ch.Proposal.Present || fresh.Proposal.Content != ch.Proposal.Content {
-		m.project.Changes[m.changeIdx].Proposal = fresh.Proposal
-		delete(m.renderCache, TabProposal)
-		if m.tab == TabProposal {
-			viewportDirty = true
-		}
-	}
-	if fresh.Design.Present != ch.Design.Present || fresh.Design.Content != ch.Design.Content {
-		m.project.Changes[m.changeIdx].Design = fresh.Design
-		delete(m.renderCache, TabDesign)
-		if m.tab == TabDesign {
-			viewportDirty = true
-		}
-	}
-	if fresh.Specs.Present != ch.Specs.Present || fresh.Specs.Content != ch.Specs.Content {
-		m.project.Changes[m.changeIdx].Specs = fresh.Specs
-		m.project.Changes[m.changeIdx].SpecFiles = fresh.SpecFiles
-		if m.specIdx >= len(fresh.SpecFiles) {
-			m.specIdx = 0
-		}
-		delete(m.renderCache, TabSpecs)
-		if m.tab == TabSpecs {
-			viewportDirty = true
-		}
-	}
-	return
+	return tasksChanged, viewportDirty
 }

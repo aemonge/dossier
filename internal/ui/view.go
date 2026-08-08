@@ -78,22 +78,26 @@ func (m *Model) renderHeader() string {
 	if ch == nil {
 		return m.theme.Styles.Header.Render(m.project.Name)
 	}
+	schema := ""
+	if ch.Schema != "" {
+		schema = " [" + ch.Schema + "]"
+	}
 	if m.mode == ModeViewingArchive {
 		return m.theme.Styles.Header.Width(m.width - 2).Render(
-			fmt.Sprintf("%s  ·  %s  [archive]", m.project.Name, ch.Name),
+			fmt.Sprintf("%s  ·  %s%s  [archive]", m.project.Name, ch.Name, schema),
 		)
 	}
 	nav := fmt.Sprintf("[%d/%d]", m.changeIdx+1, len(m.project.Changes))
 	return m.theme.Styles.Header.Width(m.width - 2).Render(
-		fmt.Sprintf("%s  ·  %s  %s", m.project.Name, ch.Name, nav),
+		fmt.Sprintf("%s  ·  %s%s  %s", m.project.Name, ch.Name, schema, nav),
 	)
 }
 
 func (m *Model) renderTabBar() string {
-	parts := make([]string, 0, tabCount)
+	var parts []string
 	selectedPart := 0
 	ch := m.current()
-	if ch != nil && len(ch.Artifacts) > 0 {
+	if ch != nil {
 		parts = make([]string, 0, len(ch.Artifacts)+1)
 		for artifactIndex, artifact := range ch.Artifacts {
 			label := artifact.ID + artifactTabStatusSuffix(artifact)
@@ -118,35 +122,14 @@ func (m *Model) renderTabBar() string {
 				parts = append(parts, m.theme.Styles.TabInactive.Render(label))
 			}
 		}
-	} else {
-		for t := Tab(0); t < tabCount; t++ {
-			if t == TabGit && m.mode != ModeNormal {
-				continue
-			}
-			label := tabLabels[t]
-			if t == TabGit && len(m.gitState.Files) > 0 {
-				label = "code (" + fmt.Sprintf("%d", len(m.gitState.Files)) + ")"
-			}
-			switch {
-			case t == m.tab:
-				selectedPart = len(parts)
-				parts = append(parts, m.theme.Styles.TabActive.Render(label))
-			case !m.tabAvailable(t):
-				parts = append(parts, m.theme.Styles.TabDisabled.Render(label))
-			default:
-				parts = append(parts, m.theme.Styles.TabInactive.Render(label))
-			}
-		}
 	}
 	tabs := fitTabParts(parts, selectedPart, m.width-2, m.theme.Styles.Help)
 
-	taskItems := m.tasks.Items
-	if m.mode == ModeViewingArchive {
-		if ch := m.currentArchive(); ch != nil && ch.Tasks.Present {
-			taskItems = openspec.ParseTasks(ch.Tasks.Content)
-		} else {
-			taskItems = nil
-		}
+	var taskItems []openspec.TaskItem
+	if output, ok := m.selectedTaskOutput(); ok {
+		taskItems = openspec.ParseTasks(output.Content)
+	} else {
+		taskItems = nil
 	}
 	total, done := 0, 0
 	for _, item := range taskItems {
@@ -224,24 +207,40 @@ func artifactTabStatusSuffix(artifact openspec.ChangeArtifact) string {
 }
 
 func (m *Model) renderSpecSubnav() string {
-	ch := m.current()
-	if ch == nil {
+	artifact, _, ok := m.selectedArtifactOutput()
+	if !ok || artifact.ID != "specs" {
 		return ""
 	}
 	var parts []string
-	for i, s := range ch.SpecFiles {
-		if i == m.specIdx {
-			parts = append(parts, m.theme.Styles.TabActive.Render(s.Name))
+	for _, output := range artifact.Outputs {
+		if !output.Present {
+			continue
+		}
+		name := output.DisplayName
+		if name == "" {
+			name = output.RelativePath
+		}
+		if output.RelativePath == m.artifactSelection.OutputPath {
+			parts = append(parts, m.theme.Styles.TabActive.Render(name))
 		} else {
-			parts = append(parts, m.theme.Styles.TabInactive.Render(s.Name))
+			parts = append(parts, m.theme.Styles.TabInactive.Render(name))
 		}
 	}
 	return strings.Join(parts, " ")
 }
 
 func (m *Model) hasSpecSubnav() bool {
-	ch := m.current()
-	return m.tab == TabSpecs && ch != nil && len(ch.SpecFiles) > 0
+	artifact, _, ok := m.selectedArtifactOutput()
+	if !ok || artifact.ID != "specs" {
+		return false
+	}
+	present := 0
+	for _, output := range artifact.Outputs {
+		if output.Present {
+			present++
+		}
+	}
+	return present > 1
 }
 
 func (m *Model) boxTop() string {
@@ -289,6 +288,47 @@ func (m *Model) renderHelpBar() string {
 		if m.index.FilterActive {
 			return m.theme.Styles.Help.Render(m.helpText(primaryKeyLabel(keyMap.Index.Filter) + m.index.FilterText + "█"))
 		}
+		action := m.index.Action
+		switch action.Mode {
+		case indexActionSchema:
+			schemas := m.filteredSchemas()
+			choice := "no matching schemas"
+			if len(schemas) > 0 {
+				cursor := min(action.SchemaCursor, len(schemas)-1)
+				schema := schemas[cursor]
+				choice = schema.Name
+				if schema.Description != "" {
+					choice += " — " + schema.Description
+				}
+				if len(schema.Artifacts) > 0 {
+					choice += " [" + strings.Join(schema.Artifacts, ", ") + "]"
+				}
+				if schema.Source != "" {
+					choice += " (" + schema.Source + ")"
+				}
+			}
+			return m.theme.Styles.Help.Render(m.helpText("schema /" + action.SchemaFilter + "  " + choice + "  " + primaryKeyLabel(keyMap.Index.Open) + ": select  Esc: cancel"))
+		case indexActionName:
+			text := "new " + action.Schema + " change: " + action.Name + "█  " + primaryKeyLabel(keyMap.Index.Open) + ": create  Esc: cancel"
+			if action.Status != "" {
+				text += "  " + action.Status
+			}
+			return m.theme.Styles.Help.Render(m.helpText(text))
+		case indexActionConfirmArchive:
+			return m.theme.Styles.Help.Render(m.helpText("archive " + m.archiveConfirmationSummary(action.TargetIdentity) + "?  " + combinedKeyLabel(keyMap.Index.Lifecycle, keyMap.Index.Open) + ": confirm  Esc: cancel"))
+		case indexActionConfirmReactivate:
+			return m.theme.Styles.Help.Render(m.helpText("make " + strings.TrimPrefix(action.TargetIdentity, "archive:") + " active?  " + combinedKeyLabel(keyMap.Index.Lifecycle, keyMap.Index.Open) + ": confirm  Esc: cancel"))
+		case indexActionConfirmUndo:
+			return m.theme.Styles.Help.Render(m.helpText("undo latest lifecycle action for " + action.Name + "?  " + combinedKeyLabel(keyMap.Index.Undo, keyMap.Index.Open) + ": confirm  Esc: cancel"))
+		case indexActionPending:
+			return m.theme.Styles.Help.Render(m.helpText(indexOperationLabel(action.Operation) + " in progress…"))
+		}
+		if action.Status != "" {
+			if action.StatusError {
+				return m.theme.Styles.Error.Render(m.helpText(action.Status))
+			}
+			return m.theme.Styles.Help.Render(m.helpText(action.Status))
+		}
 		sortAction := "sort by suffix"
 		if m.index.SortBySuffix {
 			sortAction = "sort by name"
@@ -307,6 +347,28 @@ func (m *Model) renderHelpBar() string {
 		text := pairedKeyLabel(keyMap.Index.Down, keyMap.Index.Up) + ": navigate"
 		if actionHelp != "" {
 			text += "  " + actionHelp
+		}
+		if item, ok := m.selectedIndexItem(); ok {
+			if !m.readOnly {
+				if item.kind == indexKindActive || item.kind == indexKindSpec || item.kind == indexKindRequirement {
+					text += "  " + primaryKeyLabel(keyMap.Index.New) + ": new"
+				}
+				switch item.kind {
+				case indexKindActive:
+					text += "  " + primaryKeyLabel(keyMap.Index.Lifecycle) + ": archive"
+				case indexKindArchived:
+					text += "  " + primaryKeyLabel(keyMap.Index.Lifecycle) + ": make active"
+				}
+				if _, editable := m.indexEditPath(item); editable {
+					text += "  " + primaryKeyLabel(keyMap.Index.Edit) + ": edit"
+				}
+				if m.lifecycleUndo != nil && item.kind != indexKindSection {
+					text += "  " + primaryKeyLabel(keyMap.Index.Undo) + ": undo"
+				}
+			}
+			if _, _, validatable := m.indexValidationTarget(item); validatable {
+				text += "  " + primaryKeyLabel(keyMap.Index.Validate) + ": validate"
+			}
 		}
 		text += "  click: select  " + primaryKeyLabel(keyMap.Index.Sort) + ": " + sortAction + "  " +
 			primaryKeyLabel(keyMap.Index.Info) + ": info  " + primaryKeyLabel(keyMap.Index.Back) + ": quit"
@@ -343,7 +405,7 @@ func (m *Model) renderHelpBar() string {
 				combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit",
 		))
 	}
-	if m.tab == TabGit {
+	if m.viewingCode {
 		if m.gitState.ErrMsg != "" {
 			return m.theme.Styles.Error.Render(m.helpText(m.gitState.ErrMsg))
 		}
@@ -360,7 +422,7 @@ func (m *Model) renderHelpBar() string {
 		}
 		return m.theme.Styles.Help.Render(m.helpText(text + "  " + combinedKeyLabel(keys.Back) + ": index  " + combinedKeyLabel(keys.Quit) + ": quit"))
 	}
-	if m.tab == TabTasks {
+	if m.isTasksView() {
 		text := pairedKeyLabel(keys.Previous, keys.Next) + ": change  " + tabKeys + ": artifact  " +
 			pairedKeyLabel(keys.Down, keys.Up) + ": navigate"
 		if !m.readOnly {

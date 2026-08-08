@@ -5,6 +5,9 @@
 # are intentionally replaced by Gruvbox orange, aqua, blue, or purple.
 # Keybindings use Dossier's Neovim-oriented defaults below.
 
+[ui]
+start_view = "index"
+
 [theme]
 # The built-in preserves Kitty's terminal background and supplies the full Pi-
 # aligned palette below. The explicit values make this file easy to customize.
@@ -199,11 +202,20 @@ up = ["k", "up"]
 page_up = ["pgup", "ctrl+u"]
 
 [keys.index]
+filter = ["/"]
 info = ["?"]
+new = ["n"]
+lifecycle = ["a"]
+inspect = ["i"]
+edit = ["e"]
+validate = ["v"]
+undo = ["u"]
 back = ["q", "Q", "esc"]
 down = ["j", "down"]
 up = ["k", "up"]
-open = ["l", "enter"]
+open = ["enter"]
+toggle = ["space"]
+sort = ["s"]
 
 [keys.filter]
 cancel = ["esc"]

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/fselich/dossier/internal/openspec"
 )
@@ -66,25 +67,27 @@ func (m *Model) selectArtifactOutput(artifactID, outputPath string) bool {
 		}
 		m.artifactSelection = artifactSelection{ArtifactID: artifactID, OutputPath: outputPath}
 		m.viewingCode = false
-		m.syncCompatibilityTab(artifactID)
 		return true
 	}
 	return false
 }
 
-func (m *Model) syncCompatibilityTab(artifactID string) {
-	switch artifactID {
-	case "proposal":
-		m.tab = TabProposal
-	case "design":
-		m.tab = TabDesign
-	case "specs":
-		m.tab = TabSpecs
-	case "tasks":
-		m.tab = TabTasks
-	default:
-		m.tab = TabProposal
+func artifactOutputByID(change *openspec.Change, artifactID string) (openspec.ChangeArtifact, *openspec.ArtifactOutput, bool) {
+	if change == nil {
+		return openspec.ChangeArtifact{}, nil, false
 	}
+	for _, artifact := range change.Artifacts {
+		if artifact.ID != artifactID {
+			continue
+		}
+		for outputIndex := range artifact.Outputs {
+			if artifact.Outputs[outputIndex].Present {
+				return artifact, &artifact.Outputs[outputIndex], true
+			}
+		}
+		return artifact, nil, true
+	}
+	return openspec.ChangeArtifact{}, nil, false
 }
 
 func (m *Model) selectedArtifactOutput() (openspec.ChangeArtifact, *openspec.ArtifactOutput, bool) {
@@ -107,6 +110,27 @@ func (m *Model) selectedArtifactOutput() (openspec.ChangeArtifact, *openspec.Art
 		return artifact, nil, true
 	}
 	return openspec.ChangeArtifact{}, nil, false
+}
+
+func (m *Model) selectedArtifactFilePath() (string, bool) {
+	if m.mode == ModeViewingArchive || m.viewingCode {
+		return "", false
+	}
+	_, output, ok := m.selectedArtifactOutput()
+	change := m.current()
+	if !ok || output == nil || change == nil {
+		return "", false
+	}
+	return safeIndexFile(change.Path, filepath.Join(change.Path, filepath.FromSlash(output.RelativePath)))
+}
+
+func (m *Model) selectedTaskOutput() (*openspec.ArtifactOutput, bool) {
+	_, output, ok := artifactOutputByID(m.current(), "tasks")
+	return output, ok && output != nil
+}
+
+func (m *Model) isTasksView() bool {
+	return !m.viewingCode && m.artifactSelection.ArtifactID == "tasks"
 }
 
 func (m *Model) selectedArtifactKey() (artifactOutputIdentity, bool) {
@@ -132,6 +156,54 @@ func (m *Model) invalidateArtifactRenderCache(changeName string) {
 			delete(m.artifactRenderCache, key)
 		}
 	}
+}
+
+func artifactSelectionPosition(change *openspec.Change, selection artifactSelection) (int, int) {
+	if change == nil {
+		return 0, 0
+	}
+	for artifactIndex, artifact := range change.Artifacts {
+		if artifact.ID != selection.ArtifactID {
+			continue
+		}
+		for outputIndex, output := range artifact.Outputs {
+			if output.RelativePath == selection.OutputPath {
+				return artifactIndex, outputIndex
+			}
+		}
+		return artifactIndex, 0
+	}
+	return 0, 0
+}
+
+func (m *Model) reconcileArtifactSelectionNear(artifactIndex, outputIndex int) bool {
+	ch := m.current()
+	if ch == nil || len(ch.Artifacts) == 0 {
+		m.artifactSelection = artifactSelection{}
+		return false
+	}
+	if m.selectArtifactOutput(m.artifactSelection.ArtifactID, m.artifactSelection.OutputPath) {
+		return true
+	}
+	for _, artifact := range ch.Artifacts {
+		if artifact.ID != m.artifactSelection.ArtifactID {
+			continue
+		}
+		var present []openspec.ArtifactOutput
+		for _, output := range artifact.Outputs {
+			if output.Present {
+				present = append(present, output)
+			}
+		}
+		if len(present) == 0 {
+			return m.selectArtifactOutput(artifact.ID, "")
+		}
+		outputIndex = min(max(0, outputIndex), len(present)-1)
+		return m.selectArtifactOutput(artifact.ID, present[outputIndex].RelativePath)
+	}
+	artifactIndex = min(max(0, artifactIndex), len(ch.Artifacts)-1)
+	artifact := ch.Artifacts[artifactIndex]
+	return m.selectArtifactOutput(artifact.ID, firstArtifactOutputPath(artifact))
 }
 
 func (m *Model) reconcileArtifactSelection() bool {
@@ -201,7 +273,6 @@ func (m *Model) moveViewerDestination(delta int) bool {
 	next := (current + delta%count + count) % count
 	if includeCode && next == len(ch.Artifacts) {
 		m.viewingCode = true
-		m.tab = TabGit
 		return true
 	}
 	artifact := ch.Artifacts[next]

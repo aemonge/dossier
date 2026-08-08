@@ -41,7 +41,7 @@ func (m *Model) pollGitStatus() {
 			m.gitState.Cursor = clampGitCursor(m.gitState.Cursor, files)
 		}
 	}
-	if m.tab == TabGit {
+	if m.viewingCode {
 		m.refreshGitViewport()
 	}
 }

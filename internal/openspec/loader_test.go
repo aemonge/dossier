@@ -663,7 +663,7 @@ func TestDiscoverChangeArtifacts(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(dir, "artifacts"), 0755); err != nil {
 			t.Fatal(err)
 		}
-		for i := 0; i < maxDiscoveredArtifactFiles+1; i++ {
+		for i := range maxDiscoveredArtifactFiles + 1 {
 			name := filepath.Join(dir, "artifacts", fmt.Sprintf("artifact-%03d.md", i))
 			if err := os.WriteFile(name, []byte("# Artifact"), 0644); err != nil {
 				t.Fatal(err)
@@ -814,18 +814,12 @@ func TestReloadChange(t *testing.T) {
 		}
 
 		reloaded := ReloadChange(ch)
-		if reloaded.Tasks.Content != "- [ ] updated task" {
-			t.Errorf("expected updated content, got %q", reloaded.Tasks.Content)
-		}
-		if !reloaded.Tasks.Present {
-			t.Error("expected Tasks to be present")
-		}
 		tasks, ok := reloaded.ArtifactByID("tasks")
 		if !ok || len(tasks.Outputs) != 1 {
 			t.Fatalf("expected one dynamic tasks output, got %#v", tasks)
 		}
-		if tasks.Outputs[0].Content != reloaded.Tasks.Content {
-			t.Errorf("dynamic and compatibility task content differ: %q != %q", tasks.Outputs[0].Content, reloaded.Tasks.Content)
+		if tasks.Outputs[0].Content != "- [ ] updated task" || !tasks.Outputs[0].Present {
+			t.Errorf("expected updated dynamic content, got %#v", tasks.Outputs[0])
 		}
 	})
 
@@ -841,16 +835,17 @@ func TestReloadChange(t *testing.T) {
 			t.Fatal(err)
 		}
 		initial := ReloadChange(ch)
-		if !initial.Proposal.Present {
-			t.Fatal("expected Proposal to be present after write")
+		proposal, ok := initial.ArtifactByID("proposal")
+		if !ok || len(proposal.Outputs) != 1 || !proposal.Outputs[0].Present {
+			t.Fatal("expected dynamic proposal output after write")
 		}
 
 		if err := os.Remove(filepath.Join(ch.Path, "proposal.md")); err != nil {
 			t.Fatal(err)
 		}
 		afterDelete := ReloadChange(ch)
-		if afterDelete.Proposal.Present {
-			t.Error("expected Proposal to be absent after delete")
+		if _, ok := afterDelete.ArtifactByID("proposal"); ok {
+			t.Error("expected dynamic proposal artifact to be absent after delete")
 		}
 	})
 }

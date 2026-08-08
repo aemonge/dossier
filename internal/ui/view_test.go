@@ -17,6 +17,12 @@ func testLoader() *openspec.Loader {
 	return openspec.NewLoader(openspec.OSFS{})
 }
 
+func testChangeWithOutput(name, path, artifactID, relativePath, content string) openspec.Change {
+	return openspec.Change{Name: name, Path: path, Artifacts: []openspec.ChangeArtifact{{
+		ID: artifactID, Outputs: []openspec.ArtifactOutput{{RelativePath: relativePath, Content: content, Present: true}},
+	}}}
+}
+
 func TestExtractRequirement(t *testing.T) {
 	raw := `# Spec
 
@@ -70,37 +76,6 @@ The system SHALL log out users.
 		result := openspec.ExtractRequirement(single, "Only")
 		if result != single {
 			t.Errorf("expected full content, got %q", result)
-		}
-	})
-}
-
-func TestFirstAvailableTab(t *testing.T) {
-	t.Run("change with all tabs", func(t *testing.T) {
-		ch := openspec.Change{
-			Proposal: openspec.Artifact{Present: true},
-			Design:   openspec.Artifact{Present: true},
-			Specs:    openspec.Artifact{Present: true},
-			Tasks:    openspec.Artifact{Present: true},
-		}
-		if got := firstAvailableTab(ch); got != TabProposal {
-			t.Errorf("expected TabProposal, got %d", got)
-		}
-	})
-
-	t.Run("change with only proposal and tasks", func(t *testing.T) {
-		ch := openspec.Change{
-			Proposal: openspec.Artifact{Present: true},
-			Tasks:    openspec.Artifact{Present: true},
-		}
-		if got := firstAvailableTab(ch); got != TabProposal {
-			t.Errorf("expected TabProposal, got %d", got)
-		}
-	})
-
-	t.Run("change with no artifacts", func(t *testing.T) {
-		ch := openspec.Change{}
-		if got := firstAvailableTab(ch); got != TabProposal {
-			t.Errorf("expected TabProposal as default, got %d", got)
 		}
 	})
 }
@@ -486,40 +461,40 @@ func TestUpdateKeyPresses(t *testing.T) {
 
 	t.Run("h and l switch visible artifact tabs", func(t *testing.T) {
 		m := Model{
-			mode:   ModeNormal,
-			tab:    TabProposal,
-			theme:  DarkTheme,
-			loader: testLoader(),
-			project: &openspec.Project{Changes: []openspec.Change{{
-				Proposal: openspec.Artifact{Present: true, Content: "proposal"},
-				Design:   openspec.Artifact{Present: true, Content: "design"},
-			}}},
+			mode:              ModeNormal,
+			artifactSelection: artifactSelection{ArtifactID: "proposal"},
+			theme:             DarkTheme,
+			loader:            testLoader(),
+			project: &openspec.Project{Changes: []openspec.Change{{Artifacts: []openspec.ChangeArtifact{
+				{ID: "proposal", Outputs: []openspec.ArtifactOutput{{RelativePath: "proposal.md", Content: "proposal", Present: true}}},
+				{ID: "design", Outputs: []openspec.ArtifactOutput{{RelativePath: "design.md", Content: "design", Present: true}}},
+			}}}},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 		m.vpReady = true
 
 		result, _ := m.dispatchKey(tea.KeyPressMsg{Text: "l"})
 		m = result.(Model)
-		if m.tab != TabDesign {
-			t.Fatalf("l should select next artifact, got tab %d", m.tab)
+		if m.artifactSelection.ArtifactID != "design" {
+			t.Fatalf("l should select design, got %+v", m.artifactSelection)
 		}
 
 		result, _ = m.dispatchKey(tea.KeyPressMsg{Text: "h"})
 		m = result.(Model)
-		if m.tab != TabProposal {
-			t.Fatalf("h should select previous artifact, got tab %d", m.tab)
+		if m.artifactSelection.ArtifactID != "proposal" {
+			t.Fatalf("h should select proposal, got %+v", m.artifactSelection)
 		}
 	})
 
 	t.Run("tab switches hidden changes while viewing a diff", func(t *testing.T) {
 		m := Model{
-			mode:   ModeNormal,
-			tab:    TabGit,
-			theme:  DarkTheme,
-			loader: testLoader(),
+			mode:        ModeNormal,
+			viewingCode: true,
+			theme:       DarkTheme,
+			loader:      testLoader(),
 			project: &openspec.Project{Changes: []openspec.Change{
-				{Name: "one", Proposal: openspec.Artifact{Present: true, Content: "one"}},
-				{Name: "two", Proposal: openspec.Artifact{Present: true, Content: "two"}},
+				{Name: "one", Artifacts: []openspec.ChangeArtifact{{ID: "proposal", Outputs: []openspec.ArtifactOutput{{RelativePath: "proposal.md", Content: "one", Present: true}}}}},
+				{Name: "two", Artifacts: []openspec.ChangeArtifact{{ID: "proposal", Outputs: []openspec.ArtifactOutput{{RelativePath: "proposal.md", Content: "two", Present: true}}}}},
 			}},
 			gitState: gitState{ShowingDiff: true},
 		}
@@ -580,8 +555,8 @@ func TestUpdateKeyPresses(t *testing.T) {
 
 	t.Run("pgdown scrolls a full page in proposal tab", func(t *testing.T) {
 		m := Model{
-			mode: ModeNormal,
-			tab:  TabProposal,
+			mode:              ModeNormal,
+			artifactSelection: artifactSelection{ArtifactID: "proposal"},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(10))
 		m.vp.SetContent(strings.Repeat("line\n", 100))
@@ -595,8 +570,8 @@ func TestUpdateKeyPresses(t *testing.T) {
 
 	t.Run("pgup scrolls a full page back up", func(t *testing.T) {
 		m := Model{
-			mode: ModeNormal,
-			tab:  TabProposal,
+			mode:              ModeNormal,
+			artifactSelection: artifactSelection{ArtifactID: "proposal"},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(10))
 		m.vp.SetContent(strings.Repeat("line\n", 100))
@@ -612,7 +587,7 @@ func TestUpdateKeyPresses(t *testing.T) {
 	})
 
 	t.Run("ctrl+d and ctrl+u alias page scrolling", func(t *testing.T) {
-		m := Model{mode: ModeNormal, tab: TabProposal}
+		m := Model{mode: ModeNormal, artifactSelection: artifactSelection{ArtifactID: "proposal"}}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(10))
 		m.vp.SetContent(strings.Repeat("line\n", 100))
 
@@ -632,8 +607,8 @@ func TestUpdateKeyPresses(t *testing.T) {
 
 	t.Run("pgdown is a no-op on task list", func(t *testing.T) {
 		m := Model{
-			mode: ModeNormal,
-			tab:  TabTasks,
+			mode:              ModeNormal,
+			artifactSelection: artifactSelection{ArtifactID: "tasks"},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(10))
 		m.vp.SetContent(strings.Repeat("line\n", 100))
@@ -792,7 +767,7 @@ func TestToggleTask(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, "tasks.md"), []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}
-		ch := openspec.Change{Name: "test", Path: dir, Tasks: openspec.Artifact{Present: true, Content: content}}
+		ch := testChangeWithOutput("test", dir, "tasks", "tasks.md", content)
 		m := &Model{
 			loader:  testLoader(),
 			project: &openspec.Project{Changes: []openspec.Change{ch}},
@@ -820,7 +795,7 @@ func TestToggleTask(t *testing.T) {
 		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 			t.Fatal(err)
 		}
-		ch := openspec.Change{Name: "test", Path: dir, Tasks: openspec.Artifact{Present: true, Content: content}}
+		ch := testChangeWithOutput("test", dir, "tasks", "tasks.md", content)
 		m := &Model{
 			readOnly: true,
 			loader:   testLoader(),
@@ -897,11 +872,11 @@ func TestLoadViewportDispatch(t *testing.T) {
 
 	t.Run("tasks tab returns nil", func(t *testing.T) {
 		m := &Model{
-			vpReady: true,
-			mode:    ModeNormal,
-			tab:     TabTasks,
-			width:   80,
-			project: &openspec.Project{Changes: []openspec.Change{{Name: "test", Tasks: openspec.Artifact{Present: true}}}},
+			vpReady:           true,
+			mode:              ModeNormal,
+			artifactSelection: artifactSelection{ArtifactID: "tasks", OutputPath: "tasks.md"},
+			width:             80,
+			project:           &openspec.Project{Changes: []openspec.Change{testChangeWithOutput("test", "", "tasks", "tasks.md", "- [ ] task")}},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 		cmd := m.loadViewport()
@@ -910,14 +885,16 @@ func TestLoadViewportDispatch(t *testing.T) {
 		}
 	})
 
-	t.Run("cache hit returns nil", func(t *testing.T) {
+	t.Run("artifact cache hit returns nil", func(t *testing.T) {
+		change := testChangeWithOutput("test", "", "proposal", "proposal.md", "content")
+		key := artifactOutputIdentity{ChangeName: "test", ArtifactID: "proposal", OutputPath: "proposal.md"}
 		m := &Model{
-			vpReady:     true,
-			mode:        ModeNormal,
-			tab:         TabProposal,
-			width:       80,
-			renderCache: map[Tab]string{TabProposal: "cached content"},
-			project:     &openspec.Project{Changes: []openspec.Change{{Name: "test", Proposal: openspec.Artifact{Present: true, Content: "content"}}}},
+			vpReady:             true,
+			mode:                ModeNormal,
+			artifactSelection:   artifactSelection{ArtifactID: "proposal", OutputPath: "proposal.md"},
+			artifactRenderCache: map[artifactOutputIdentity]string{key: "cached content"},
+			width:               80,
+			project:             &openspec.Project{Changes: []openspec.Change{change}},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 		cmd := m.loadViewport()
@@ -1255,36 +1232,32 @@ func TestIndexFilteredNavigation(t *testing.T) {
 func TestRenderTabBar(t *testing.T) {
 	t.Run("active tab highlighted", func(t *testing.T) {
 		m := &Model{
-			tab:   TabProposal,
-			width: 80,
+			artifactSelection: artifactSelection{ArtifactID: "proposal"},
+			width:             80,
 			project: &openspec.Project{
-				Changes: []openspec.Change{{
-					Name:     "test",
-					Proposal: openspec.Artifact{Present: true},
-				}},
+				Changes: []openspec.Change{{Name: "test", Artifacts: []openspec.ChangeArtifact{{
+					ID: "proposal", Outputs: []openspec.ArtifactOutput{{RelativePath: "proposal.md", Present: true}},
+				}}}},
 			},
 			mode: ModeNormal,
 		}
-		m.renderCache = make(map[Tab]string)
 		result := m.renderTabBar()
 		if !strings.Contains(result, "proposal") {
 			t.Error("expected 'proposal' in tab bar")
 		}
 	})
 
-	t.Run("disabled tab shows low style", func(t *testing.T) {
+	t.Run("dynamic tab remains visible", func(t *testing.T) {
 		m := &Model{
-			tab:   TabProposal,
-			width: 80,
+			artifactSelection: artifactSelection{ArtifactID: "proposal"},
+			width:             80,
 			project: &openspec.Project{
-				Changes: []openspec.Change{{
-					Name:     "test",
-					Proposal: openspec.Artifact{Present: true},
-				}},
+				Changes: []openspec.Change{{Name: "test", Artifacts: []openspec.ChangeArtifact{{
+					ID: "proposal", Outputs: []openspec.ArtifactOutput{{RelativePath: "proposal.md", Present: true}},
+				}}}},
 			},
 			mode: ModeNormal,
 		}
-		m.renderCache = make(map[Tab]string)
 		result := m.renderTabBar()
 		if !strings.Contains(result, "proposal") {
 			t.Error("expected proposal in tab bar")
@@ -1365,8 +1338,8 @@ func TestGitCursorLandsOnDeletedFiles(t *testing.T) {
 func TestGitDeletedEnterEDNoop(t *testing.T) {
 	t.Run("d on deleted file does nothing", func(t *testing.T) {
 		m := Model{
-			mode: ModeNormal,
-			tab:  TabGit,
+			mode:        ModeNormal,
+			viewingCode: true,
 			gitState: gitState{
 				Files: []git.FileStatus{
 					{Path: "del.go", X: ' ', Y: 'D', IsDeleted: true},
@@ -1386,8 +1359,8 @@ func TestGitDeletedEnterEDNoop(t *testing.T) {
 
 	t.Run("Enter on deleted file does nothing", func(t *testing.T) {
 		m := Model{
-			mode: ModeNormal,
-			tab:  TabGit,
+			mode:        ModeNormal,
+			viewingCode: true,
 			gitState: gitState{
 				Files: []git.FileStatus{
 					{Path: "del.go", X: ' ', Y: 'D', IsDeleted: true},
@@ -1407,8 +1380,8 @@ func TestGitDeletedEnterEDNoop(t *testing.T) {
 
 	t.Run("e on deleted file does nothing", func(t *testing.T) {
 		m := Model{
-			mode: ModeNormal,
-			tab:  TabGit,
+			mode:        ModeNormal,
+			viewingCode: true,
 			gitState: gitState{
 				Files: []git.FileStatus{
 					{Path: "del.go", X: ' ', Y: 'D', IsDeleted: true},
@@ -1473,11 +1446,11 @@ func TestGitSStageModified(t *testing.T) {
 	}
 
 	m := Model{
-		mode:      ModeNormal,
-		tab:       TabGit,
-		root:      dir,
-		gitRoot:   dir,
-		isGitRepo: true,
+		mode:        ModeNormal,
+		viewingCode: true,
+		root:        dir,
+		gitRoot:     dir,
+		isGitRepo:   true,
 		gitState: gitState{
 			Files:  files,
 			Cursor: 0,
@@ -1522,11 +1495,11 @@ func TestGitSUnstageStaged(t *testing.T) {
 	}
 
 	m := Model{
-		mode:      ModeNormal,
-		tab:       TabGit,
-		root:      dir,
-		gitRoot:   dir,
-		isGitRepo: true,
+		mode:        ModeNormal,
+		viewingCode: true,
+		root:        dir,
+		gitRoot:     dir,
+		isGitRepo:   true,
 		gitState: gitState{
 			Files:  files,
 			Cursor: 0,
@@ -1577,11 +1550,11 @@ func TestGitSMixedMM(t *testing.T) {
 	}
 
 	m := Model{
-		mode:      ModeNormal,
-		tab:       TabGit,
-		root:      dir,
-		gitRoot:   dir,
-		isGitRepo: true,
+		mode:        ModeNormal,
+		viewingCode: true,
+		root:        dir,
+		gitRoot:     dir,
+		isGitRepo:   true,
 		gitState: gitState{
 			Files:  files,
 			Cursor: 0,
@@ -1625,11 +1598,11 @@ func TestGitSStageDeleted(t *testing.T) {
 	}
 
 	m := Model{
-		mode:      ModeNormal,
-		tab:       TabGit,
-		root:      dir,
-		gitRoot:   dir,
-		isGitRepo: true,
+		mode:        ModeNormal,
+		viewingCode: true,
+		root:        dir,
+		gitRoot:     dir,
+		isGitRepo:   true,
 		gitState: gitState{
 			Files:  files,
 			Cursor: 0,
@@ -1680,11 +1653,11 @@ func TestGitSErrorPath(t *testing.T) {
 	}
 
 	m := Model{
-		mode:      ModeNormal,
-		tab:       TabGit,
-		root:      dir,
-		gitRoot:   dir,
-		isGitRepo: true,
+		mode:        ModeNormal,
+		viewingCode: true,
+		root:        dir,
+		gitRoot:     dir,
+		isGitRepo:   true,
 		gitState: gitState{
 			Files:  files,
 			Cursor: 0,
@@ -1715,15 +1688,15 @@ func TestGitSReadOnlyDoesNotStage(t *testing.T) {
 		t.Fatalf("Status: %v", err)
 	}
 	m := Model{
-		readOnly:  true,
-		mode:      ModeNormal,
-		tab:       TabGit,
-		root:      dir,
-		gitRoot:   dir,
-		isGitRepo: true,
-		gitState:  gitState{Files: files},
-		width:     80,
-		height:    24,
+		readOnly:    true,
+		mode:        ModeNormal,
+		viewingCode: true,
+		root:        dir,
+		gitRoot:     dir,
+		isGitRepo:   true,
+		gitState:    gitState{Files: files},
+		width:       80,
+		height:      24,
 	}
 	m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
 	m.vpReady = true
@@ -1747,8 +1720,8 @@ func TestGitSReadOnlyDoesNotStage(t *testing.T) {
 
 func TestGitSInactiveInDiffView(t *testing.T) {
 	m := Model{
-		mode: ModeNormal,
-		tab:  TabGit,
+		mode:        ModeNormal,
+		viewingCode: true,
 		gitState: gitState{
 			Files: []git.FileStatus{
 				{Path: "a.txt", X: ' ', Y: 'M'},
@@ -1772,8 +1745,8 @@ func TestGitSInactiveInDiffView(t *testing.T) {
 
 func TestGitSInactiveCleanTree(t *testing.T) {
 	m := Model{
-		mode: ModeNormal,
-		tab:  TabGit,
+		mode:        ModeNormal,
+		viewingCode: true,
 		gitState: gitState{
 			Files:  nil,
 			Cursor: 0,
@@ -1833,21 +1806,15 @@ func TestEnsureRendererFallsBackToDarkOnEmptyStyle(t *testing.T) {
 func TestArchiveTasksNavigation(t *testing.T) {
 	t.Run("loadTaskItems populates items from archive change", func(t *testing.T) {
 		m := &Model{
-			mode:  ModeViewingArchive,
-			tab:   TabTasks,
-			theme: DarkTheme,
+			mode:              ModeViewingArchive,
+			artifactSelection: artifactSelection{ArtifactID: "tasks"},
+			theme:             DarkTheme,
 			index: indexState{
 				ArchiveCursor: 0,
-				ArchiveChanges: []openspec.Change{
-					{
-						Name: "2024-01-15-test-change",
-						Path: "openspec/changes/archive/2024-01-15-test-change",
-						Tasks: openspec.Artifact{
-							Present: true,
-							Content: "## 1. Section\n\n- [ ] Task one\n- [x] Task two\n",
-						},
-					},
-				},
+				ArchiveChanges: []openspec.Change{testChangeWithOutput(
+					"2024-01-15-test-change", "openspec/changes/archive/2024-01-15-test-change",
+					"tasks", "tasks.md", "## 1. Section\n\n- [ ] Task one\n- [x] Task two\n",
+				)},
 			},
 		}
 		m.loadTaskItems()
@@ -1864,22 +1831,16 @@ func TestArchiveTasksNavigation(t *testing.T) {
 
 	t.Run("j scrolls viewport in archive tasks tab", func(t *testing.T) {
 		m := Model{
-			mode:  ModeViewingArchive,
-			tab:   TabTasks,
-			width: 80,
-			theme: DarkTheme,
+			mode:              ModeViewingArchive,
+			artifactSelection: artifactSelection{ArtifactID: "tasks"},
+			width:             80,
+			theme:             DarkTheme,
 			index: indexState{
 				ArchiveCursor: 0,
-				ArchiveChanges: []openspec.Change{
-					{
-						Name: "2024-01-15-test-change",
-						Path: "openspec/changes/archive/2024-01-15-test-change",
-						Tasks: openspec.Artifact{
-							Present: true,
-							Content: "## 1. Section\n\n- [ ] Task one\n- [ ] Task two\n",
-						},
-					},
-				},
+				ArchiveChanges: []openspec.Change{testChangeWithOutput(
+					"2024-01-15-test-change", "openspec/changes/archive/2024-01-15-test-change",
+					"tasks", "tasks.md", "## 1. Section\n\n- [ ] Task one\n- [ ] Task two\n",
+				)},
 			},
 			tasks: taskState{
 				Items: []openspec.TaskItem{
@@ -1908,22 +1869,16 @@ func TestArchiveTasksNavigation(t *testing.T) {
 
 	t.Run("k scrolls viewport in archive tasks tab", func(t *testing.T) {
 		m := Model{
-			mode:  ModeViewingArchive,
-			tab:   TabTasks,
-			width: 80,
-			theme: DarkTheme,
+			mode:              ModeViewingArchive,
+			artifactSelection: artifactSelection{ArtifactID: "tasks"},
+			width:             80,
+			theme:             DarkTheme,
 			index: indexState{
 				ArchiveCursor: 0,
-				ArchiveChanges: []openspec.Change{
-					{
-						Name: "2024-01-15-test-change",
-						Path: "openspec/changes/archive/2024-01-15-test-change",
-						Tasks: openspec.Artifact{
-							Present: true,
-							Content: "## 1. Section\n\n- [ ] Task one\n- [ ] Task two\n",
-						},
-					},
-				},
+				ArchiveChanges: []openspec.Change{testChangeWithOutput(
+					"2024-01-15-test-change", "openspec/changes/archive/2024-01-15-test-change",
+					"tasks", "tasks.md", "## 1. Section\n\n- [ ] Task one\n- [ ] Task two\n",
+				)},
 			},
 			tasks: taskState{
 				Items: []openspec.TaskItem{
@@ -1951,21 +1906,15 @@ func TestArchiveTasksNavigation(t *testing.T) {
 
 func TestSpaceIgnoredInArchiveMode(t *testing.T) {
 	m := Model{
-		mode:  ModeViewingArchive,
-		tab:   TabTasks,
-		theme: DarkTheme,
+		mode:              ModeViewingArchive,
+		artifactSelection: artifactSelection{ArtifactID: "tasks"},
+		theme:             DarkTheme,
 		index: indexState{
 			ArchiveCursor: 0,
-			ArchiveChanges: []openspec.Change{
-				{
-					Name: "2024-01-15-test-change",
-					Path: "openspec/changes/archive/2024-01-15-test-change",
-					Tasks: openspec.Artifact{
-						Present: true,
-						Content: "## 1. Section\n\n- [ ] Task one\n",
-					},
-				},
-			},
+			ArchiveChanges: []openspec.Change{testChangeWithOutput(
+				"2024-01-15-test-change", "openspec/changes/archive/2024-01-15-test-change",
+				"tasks", "tasks.md", "## 1. Section\n\n- [ ] Task one\n",
+			)},
 		},
 		tasks: taskState{
 			Items: []openspec.TaskItem{
@@ -1997,14 +1946,12 @@ func TestEditorIgnoredInReadOnlyMode(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := Model{
-		readOnly: true,
-		mode:     ModeNormal,
-		tab:      TabProposal,
-		project: &openspec.Project{Changes: []openspec.Change{{
-			Name:     "test",
-			Path:     dir,
-			Proposal: openspec.Artifact{Present: true, Content: "# Proposal"},
-		}}},
+		readOnly:          true,
+		mode:              ModeNormal,
+		artifactSelection: artifactSelection{ArtifactID: "proposal"},
+		project: &openspec.Project{Changes: []openspec.Change{
+			testChangeWithOutput("test", dir, "proposal", "proposal.md", "# Proposal"),
+		}},
 	}
 
 	_, cmd := m.dispatchKey(tea.KeyPressMsg{Text: "e"})
@@ -2015,17 +1962,18 @@ func TestEditorIgnoredInReadOnlyMode(t *testing.T) {
 
 func TestReadOnlyHelpBarOmitsMutationHints(t *testing.T) {
 	tests := []struct {
-		name      string
-		tab       Tab
-		forbidden []string
+		name       string
+		artifactID string
+		code       bool
+		forbidden  []string
 	}{
-		{name: "tasks", tab: TabTasks, forbidden: []string{"Space: toggle", "e: edit"}},
-		{name: "git", tab: TabGit, forbidden: []string{"s: stage/unstage"}},
-		{name: "artifact", tab: TabProposal, forbidden: []string{"e: edit"}},
+		{name: "tasks", artifactID: "tasks", forbidden: []string{"Space: toggle", "e: edit"}},
+		{name: "git", code: true, forbidden: []string{"s: stage/unstage"}},
+		{name: "artifact", artifactID: "proposal", forbidden: []string{"e: edit"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := Model{readOnly: true, mode: ModeNormal, tab: tt.tab, isGitRepo: true}
+			m := Model{readOnly: true, mode: ModeNormal, artifactSelection: artifactSelection{ArtifactID: tt.artifactID}, viewingCode: tt.code, isGitRepo: true}
 			help := m.renderHelpBar()
 			if !strings.Contains(help, "read-only") {
 				t.Errorf("expected read-only indicator, got %q", help)
@@ -2051,22 +1999,15 @@ func TestEditorIgnoredInArchiveMode(t *testing.T) {
 	}
 
 	m := Model{
-		mode:   ModeViewingArchive,
-		tab:    TabTasks,
-		root:   dir,
-		theme:  DarkTheme,
-		loader: testLoader(),
+		mode:              ModeViewingArchive,
+		artifactSelection: artifactSelection{ArtifactID: "tasks"},
+		root:              dir,
+		theme:             DarkTheme,
+		loader:            testLoader(),
 		index: indexState{
 			ArchiveCursor: 0,
 			ArchiveChanges: []openspec.Change{
-				{
-					Name: "2024-01-15-test-change",
-					Path: changeDir,
-					Tasks: openspec.Artifact{
-						Present: true,
-						Content: tasksContent,
-					},
-				},
+				testChangeWithOutput("2024-01-15-test-change", changeDir, "tasks", "tasks.md", tasksContent),
 			},
 		},
 		tasks: taskState{
@@ -2092,23 +2033,17 @@ func TestEditorIgnoredInArchiveMode(t *testing.T) {
 func TestArchiveLoadViewportUsesGlamour(t *testing.T) {
 	t.Run("loadViewport for archive tasks tab returns glamour cmd", func(t *testing.T) {
 		m := &Model{
-			vpReady: true,
-			mode:    ModeViewingArchive,
-			tab:     TabTasks,
-			width:   80,
-			theme:   DarkTheme,
+			vpReady:           true,
+			mode:              ModeViewingArchive,
+			artifactSelection: artifactSelection{ArtifactID: "tasks", OutputPath: "tasks.md"},
+			width:             80,
+			theme:             DarkTheme,
 			index: indexState{
 				ArchiveCursor: 0,
-				ArchiveChanges: []openspec.Change{
-					{
-						Name: "2024-01-15-test-change",
-						Path: "openspec/changes/archive/2024-01-15-test-change",
-						Tasks: openspec.Artifact{
-							Present: true,
-							Content: "## 1. Section\n\n- [ ] Task one\n",
-						},
-					},
-				},
+				ArchiveChanges: []openspec.Change{testChangeWithOutput(
+					"2024-01-15-test-change", "openspec/changes/archive/2024-01-15-test-change",
+					"tasks", "tasks.md", "## 1. Section\n\n- [ ] Task one\n",
+				)},
 			},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))
@@ -2120,23 +2055,17 @@ func TestArchiveLoadViewportUsesGlamour(t *testing.T) {
 
 	t.Run("loadViewport for archive proposal tab returns glamour cmd", func(t *testing.T) {
 		m := &Model{
-			vpReady: true,
-			mode:    ModeViewingArchive,
-			tab:     TabProposal,
-			width:   80,
-			theme:   DarkTheme,
+			vpReady:           true,
+			mode:              ModeViewingArchive,
+			artifactSelection: artifactSelection{ArtifactID: "proposal", OutputPath: "proposal.md"},
+			width:             80,
+			theme:             DarkTheme,
 			index: indexState{
 				ArchiveCursor: 0,
-				ArchiveChanges: []openspec.Change{
-					{
-						Name: "2024-01-15-test-change",
-						Path: "openspec/changes/archive/2024-01-15-test-change",
-						Proposal: openspec.Artifact{
-							Present: true,
-							Content: "# Proposal\n\nTest content\n",
-						},
-					},
-				},
+				ArchiveChanges: []openspec.Change{testChangeWithOutput(
+					"2024-01-15-test-change", "openspec/changes/archive/2024-01-15-test-change",
+					"proposal", "proposal.md", "# Proposal\n\nTest content\n",
+				)},
 			},
 		}
 		m.vp = viewport.New(viewport.WithWidth(80), viewport.WithHeight(20))

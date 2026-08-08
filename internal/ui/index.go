@@ -14,7 +14,13 @@ import (
 
 func (m *Model) handleTick() tea.Cmd {
 	m.pollGitStatus()
-	if m.mode == ModeViewingArchive || m.mode == ModeViewingSpec {
+	if m.mode == ModeViewingSpec {
+		return nil
+	}
+	if m.mode == ModeViewingArchive {
+		if m.singlePath {
+			return m.pollSingleArchivedContent()
+		}
 		return nil
 	}
 
@@ -91,6 +97,22 @@ func (m *Model) pollIndexMode() tea.Cmd {
 	return nil
 }
 
+func (m *Model) pollSingleArchivedContent() tea.Cmd {
+	ch := m.currentArchive()
+	if ch == nil {
+		return nil
+	}
+	oldArtifactIndex, oldOutputIndex := artifactSelectionPosition(ch, m.artifactSelection)
+	fresh := m.loader.ReloadChange(*ch)
+	if changeDiscoveryFingerprint(*ch) == changeDiscoveryFingerprint(fresh) {
+		return nil
+	}
+	m.index.ArchiveChanges[m.index.ArchiveCursor] = fresh
+	m.invalidateArtifactRenderCache(fresh.Name)
+	m.reconcileArtifactSelectionNear(oldArtifactIndex, oldOutputIndex)
+	return m.loadViewport()
+}
+
 func (m *Model) pollNormalModeChanges() tea.Cmd {
 	diskNames, err := m.loader.ListChangeNamesFrom(m.root)
 	if err != nil {
@@ -113,9 +135,7 @@ func (m *Model) pollNormalModeChanges() tea.Cmd {
 			if len(p.Changes) == 0 {
 				return nil
 			}
-			m.renderCache = make(map[Tab]string)
 			m.artifactRenderCache = make(map[artifactOutputIdentity]string)
-			m.tab = m.defaultTab()
 			m.selectDefaultArtifact()
 			m.loadTaskItems()
 			return m.loadViewport()
@@ -141,7 +161,7 @@ func (m *Model) pollNormalModeContent() tea.Cmd {
 		if cursorText != "" {
 			m.tasks.Cursor = openspec.FindCursorByText(m.tasks.Items, cursorText)
 		}
-		if m.tab == TabTasks {
+		if m.isTasksView() {
 			m.refreshTasksViewport()
 		}
 	}
@@ -1024,11 +1044,12 @@ func (m *Model) indexItemAtContentLine(contentLine int) (int, bool) {
 }
 
 func taskCounts(ch openspec.Change) (int, int) {
-	if !ch.Tasks.Present {
+	_, output, ok := artifactOutputByID(&ch, "tasks")
+	if !ok || output == nil {
 		return 0, 0
 	}
 	done, total := 0, 0
-	for _, item := range openspec.ParseTasks(ch.Tasks.Content) {
+	for _, item := range openspec.ParseTasks(output.Content) {
 		if item.Kind == openspec.KindTask {
 			total++
 			if item.Done {
@@ -1119,31 +1140,26 @@ func (m Model) toggleIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 
 func (m Model) inspectIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 	m.returnIndexIdentity = item.identity
-	m.renderCache = make(map[Tab]string)
 	m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 	switch item.kind {
 	case indexKindActive:
 		m.changeIdx = item.idx
 		m.mode = ModeNormal
-		m.tab = m.defaultTab()
 		m.selectDefaultArtifact()
 		m.loadTaskItems()
 		return m.commitStateChange()
 	case indexKindArchived:
 		m.index.ArchiveCursor = item.idx
 		m.mode = ModeViewingArchive
-		m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
 		m.selectDefaultArtifact()
 		return m.commitStateChange()
 	case indexKindArtifact, indexKindArtifactOutput:
 		if item.archived {
 			m.index.ArchiveCursor = item.idx
 			m.mode = ModeViewingArchive
-			m.tab = firstAvailableTab(m.index.ArchiveChanges[item.idx])
 		} else {
 			m.changeIdx = item.idx
 			m.mode = ModeNormal
-			m.tab = m.defaultTab()
 			m.loadTaskItems()
 		}
 		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
@@ -1175,6 +1191,11 @@ func (m Model) inspectIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 
 func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	keyMap := m.effectiveKeyMap()
+	if updated, cmd, handled := m.handleIndexActionInput(msg); handled {
+		return updated, cmd
+	} else {
+		m = updated
+	}
 	if m.index.FilterActive {
 		switch {
 		case matchesKey(msg, keyMap.Filter.Cancel):
@@ -1209,6 +1230,29 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 	switch {
 
+	case matchesKey(msg, keyMap.Index.New):
+		m = m.startNewChange()
+
+	case matchesKey(msg, keyMap.Index.Lifecycle):
+		if item, ok := m.selectedIndexItem(); ok {
+			m = m.startLifecycle(item)
+		}
+
+	case matchesKey(msg, keyMap.Index.Edit):
+		if item, ok := m.selectedIndexItem(); ok {
+			return m.editIndexItem(item)
+		}
+
+	case matchesKey(msg, keyMap.Index.Validate):
+		if item, ok := m.selectedIndexItem(); ok {
+			return m.startValidation(item)
+		}
+
+	case matchesKey(msg, keyMap.Index.Undo):
+		if !m.readOnly && m.lifecycleUndo != nil {
+			m.index.Action = indexActionState{Mode: indexActionConfirmUndo, Operation: indexOperationUndo, Name: m.lifecycleUndo.ChangeName}
+		}
+
 	case matchesKey(msg, keyMap.Index.Filter):
 		m.index.PrevFilterText = m.index.FilterText
 		m.index.FilterText = ""
@@ -1227,6 +1271,9 @@ func (m Model) updateIndex(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.index.FilterIndices = nil
 			m.refreshIndexViewport()
 			return m, nil
+		}
+		if m.lifecycle != nil {
+			m.lifecycle.Cleanup(m.lifecycleUndo)
 		}
 		return m, tea.Quit
 

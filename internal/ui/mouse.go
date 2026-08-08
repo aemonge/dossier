@@ -17,12 +17,12 @@ func (m Model) handleMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
 			m.refreshIndexViewport()
 			return m, nil
 		}
-		if m.tab == TabTasks && m.mode == ModeNormal {
+		if m.isTasksView() && m.mode == ModeNormal {
 			m.moveCursorUp()
 			m.refreshTasksViewport()
 			return m, nil
 		}
-		if m.tab == TabGit && m.mode == ModeNormal {
+		if m.viewingCode && m.mode == ModeNormal {
 			m.moveGitCursorUp()
 			m.refreshGitViewport()
 			return m, nil
@@ -37,12 +37,12 @@ func (m Model) handleMouseWheel(msg tea.MouseWheelMsg) (tea.Model, tea.Cmd) {
 			m.refreshIndexViewport()
 			return m, nil
 		}
-		if m.tab == TabTasks && m.mode == ModeNormal {
+		if m.isTasksView() && m.mode == ModeNormal {
 			m.moveCursorDown()
 			m.refreshTasksViewport()
 			return m, nil
 		}
-		if m.tab == TabGit && m.mode == ModeNormal {
+		if m.viewingCode && m.mode == ModeNormal {
 			m.moveGitCursorDown()
 			m.refreshGitViewport()
 			return m, nil
@@ -124,41 +124,12 @@ func (m Model) handleMouseClick(msg tea.MouseClickMsg) (tea.Model, tea.Cmd) {
 			w := lipgloss.Width(label) + 2
 			if msg.X >= x && msg.X <= x+w-1 && len(m.gitState.Files) > 0 {
 				m.viewingCode = true
-				m.tab = TabGit
 				m.vp.SetHeight(m.contentHeight())
 				return m, m.loadViewport()
 			}
 		}
 		return m, nil
 	}
-	for t := Tab(0); t < tabCount; t++ {
-		label := tabLabels[t]
-		if t == TabGit && len(m.gitState.Files) > 0 {
-			label = "code (" + fmt.Sprintf("%d", len(m.gitState.Files)) + ")"
-		}
-		w := len(label) + 2
-		if msg.X >= x && msg.X <= x+w-1 {
-			if !m.tabAvailable(t) {
-				return m, nil
-			}
-			if t == TabSpecs && m.tab == TabSpecs {
-				ch := m.current()
-				if ch != nil && len(ch.SpecFiles) > 1 {
-					m.specIdx = (m.specIdx + 1) % len(ch.SpecFiles)
-					delete(m.renderCache, TabSpecs)
-				}
-			} else {
-				m.tab = t
-				if t == TabSpecs {
-					m.specIdx = 0
-				}
-			}
-			m.vp.SetHeight(m.contentHeight())
-			return m, m.loadViewport()
-		}
-		x += w + 1
-	}
-
 	return m, nil
 }
 

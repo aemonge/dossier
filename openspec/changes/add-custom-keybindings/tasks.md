@@ -18,7 +18,7 @@
 - [x] 3.1 Add failing tests that help labels reflect custom bindings and read-only omissions
 - [x] 3.2 Generate all keyboard help labels from the active keymap
 - [x] 3.3 Document every action and a complete example keymap
-- [ ] 3.4 Run OpenSpec validation, formatting, lint, race/coverage tests, vet, and build
+- [x] 3.4 Run OpenSpec validation, formatting, lint, race/coverage tests, vet, and build
 
 ## Estimate
 

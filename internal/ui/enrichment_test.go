@@ -325,7 +325,8 @@ func TestDiscoveryFingerprintChangesWithArtifactContent(t *testing.T) {
 	if changeDiscoveryFingerprint(before) == changeDiscoveryFingerprint(after) {
 		t.Fatal("expected content change to invalidate fingerprint")
 	}
-	if changeDiscoveryFingerprint(before) != changeDiscoveryFingerprint(before) {
+	beforeCopy := before
+	if changeDiscoveryFingerprint(before) != changeDiscoveryFingerprint(beforeCopy) {
 		t.Fatal("expected deterministic fingerprint")
 	}
 }

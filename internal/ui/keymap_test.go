@@ -14,12 +14,10 @@ func TestCustomViewerNavigationReplacesDefaultBinding(t *testing.T) {
 	keys := settings.DefaultKeys()
 	keys.Viewer.Down = []string{"n"}
 	m := Model{
-		mode:   ModeNormal,
-		tab:    TabTasks,
-		keyMap: keys,
-		project: &openspec.Project{Changes: []openspec.Change{{
-			Tasks: openspec.Artifact{Present: true},
-		}}},
+		mode: ModeNormal, keyMap: keys, artifactSelection: artifactSelection{ArtifactID: "tasks", OutputPath: "tasks.md"},
+		project: &openspec.Project{Changes: []openspec.Change{{Artifacts: []openspec.ChangeArtifact{{
+			ID: "tasks", Outputs: []openspec.ArtifactOutput{{RelativePath: "tasks.md", Present: true}},
+		}}}}},
 		tasks: taskState{
 			Items: []openspec.TaskItem{
 				{Kind: openspec.KindTask, Text: "one"},
@@ -48,7 +46,7 @@ func TestCustomKeymapUpdatesHelp(t *testing.T) {
 	keys := settings.DefaultKeys()
 	keys.Viewer.ToggleTask = []string{"x"}
 	keys.Viewer.Open = []string{"o"}
-	m := Model{mode: ModeNormal, tab: TabTasks, keyMap: keys}
+	m := Model{mode: ModeNormal, artifactSelection: artifactSelection{ArtifactID: "tasks"}, keyMap: keys}
 
 	help := m.renderHelpBar()
 	if !strings.Contains(help, "x: toggle") || !strings.Contains(help, "o: edit") {
@@ -60,7 +58,7 @@ func TestCustomKeymapUpdatesHelp(t *testing.T) {
 }
 
 func TestDefaultHelpShowsVisibleArtifactsAndHiddenChanges(t *testing.T) {
-	m := Model{mode: ModeNormal, tab: TabProposal}
+	m := Model{mode: ModeNormal, artifactSelection: artifactSelection{ArtifactID: "proposal"}}
 	help := m.renderHelpBar()
 	if !strings.Contains(help, "Shift+Tab/Tab: change") {
 		t.Fatalf("change navigation help missing: %q", help)
@@ -69,7 +67,7 @@ func TestDefaultHelpShowsVisibleArtifactsAndHiddenChanges(t *testing.T) {
 		t.Fatalf("artifact navigation help missing: %q", help)
 	}
 
-	m.tab = TabGit
+	m.viewingCode = true
 	m.gitState.ShowingDiff = true
 	help = m.renderHelpBar()
 	if !strings.Contains(help, "H/L: horizontal") {
@@ -84,7 +82,7 @@ func TestReadOnlyCustomHelpOmitsMutationBindings(t *testing.T) {
 	keys := settings.DefaultKeys()
 	keys.Viewer.ToggleTask = []string{"x"}
 	keys.Viewer.Open = []string{"o"}
-	m := Model{mode: ModeNormal, tab: TabTasks, keyMap: keys, readOnly: true}
+	m := Model{mode: ModeNormal, artifactSelection: artifactSelection{ArtifactID: "tasks"}, keyMap: keys, readOnly: true}
 
 	help := m.renderHelpBar()
 	if strings.Contains(help, "x: toggle") || strings.Contains(help, "o: edit") {

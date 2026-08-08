@@ -14,12 +14,13 @@ A keyboard-driven terminal UI for reading and navigating [OpenSpec](https://gith
 
 ## Features
 
-- Navigates all active changes and their artifacts from a single interface
+- Starts in a schema-aware index for active changes, canonical specs, requirements, and history
+- Creates, validates, archives, reactivates, and safely undoes OpenSpec lifecycle actions from the index
 - Renders Markdown with full syntax highlighting
-- Toggles task checkboxes (`- [ ]` / `- [x]`) in-place, writing directly to `tasks.md`
+- Toggles task checkboxes (`- [ ]` / `- [x]`) in the selected schema-defined `tasks` artifact output
 - Live-reloads on disk changes (500 ms polling)
 - Opens any artifact in `$EDITOR`
-- Offers `--read-only` mode for safe review without task, editor, or Git index mutations
+- Offers `--read-only` mode for safe review without change lifecycle, task, editor, or Git index mutations
 - Supports XDG TOML configuration for custom UI, Glamour, and Chroma colors
 - Supports context-specific custom keybindings with dynamic help labels
 - Accepts a path argument to view a single change directory without a full project
@@ -28,7 +29,7 @@ A keyboard-driven terminal UI for reading and navigating [OpenSpec](https://gith
 
 ## Installation
 
-**Requirements:** terminal with ANSI color support. Go 1.25 or later if building from source.
+**Requirements:** terminal with ANSI color support. Go 1.25 or later if building from source. The `openspec` executable is required for create, validate, and archive actions; navigation, inspection, reactivation, and eligible session undo remain available without it.
 
 ```bash
 # Homebrew
@@ -84,9 +85,12 @@ Use another file with `dossier --config <path>`. A missing default file is ignor
 dossier --read-only --theme gruvbox-light-soft --keystyle nvim
 ```
 
-The same bases can be selected in TOML and extended with sparse overrides:
+The same bases can be selected in TOML and extended with sparse overrides. Dossier starts in the index by default; set `start_view = "change"` for the legacy first-active-change view. Explicit path launches always open their target directly.
 
 ```toml
+[ui]
+start_view = "index" # index or change
+
 [theme]
 base = "gruvbox-light-soft"
 
@@ -109,6 +113,14 @@ A Pi-aligned Gruvbox Light Soft example is also available at `examples/config.gr
 
 Keybindings are context-specific, so a key may be reused in different modes but cannot be assigned to two actions in the same mode. Help labels automatically reflect the configured bindings.
 
+### OpenSpec hierarchy and dynamic artifacts
+
+The index separates **Active Work**, **Canonical Specs**, and **History**. Active and archived changes show their selected schema (for example `spec-driven`, `bugfix`, or `spike`) and expand into that schema's artifact IDs and concrete output files. Artifact dependencies remain sibling metadata (`requires …`) rather than being presented as a false ownership tree.
+
+Change-local `specs/<capability>/spec.md` files are **delta specs** owned by a change. Project-level `openspec/specs/<capability>/spec.md` files are **canonical specs** and expand into requirements independently of any one change.
+
+When the OpenSpec CLI is available, Dossier enriches active work with authoritative schema order, status, dependencies, and resolved outputs. If the CLI or a schema is unavailable, safe filesystem discovery keeps readable Markdown artifacts navigable and labels the degraded state. Hidden files and symlink escapes are not discovered.
+
 ### Keyboard reference
 
 #### Normal mode (viewing a change)
@@ -121,7 +133,8 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 | `PgUp` / `Ctrl+U` | Scroll one page up (except the Tasks tab) |
 | `h` / `l` | Previous / next artifact tab |
 | `Tab` / `Shift+Tab` | Next / previous change |
-| `1`–`5` | Select an artifact tab directly |
+| `1`–`4` | Select the schema artifact at that position |
+| `5` | Open the synthetic active-only code destination when available |
 | `Space` | Toggle task under cursor (tasks tab only) |
 | `e` | Open artifact in `$EDITOR` |
 | `?` | Open configuration information |
@@ -134,14 +147,24 @@ Keybindings are context-specific, so a key may be reused in different modes but 
 |---|---|
 | `j` / `down` | Move cursor down |
 | `k` / `up` | Move cursor up |
-| `l` / `Enter` | Open selected change, spec, or archived change |
-| `Space` | Expand / collapse a project spec |
+| `Enter` | Toggle expandable rows; inspect output and requirement leaves |
+| `Space` | Toggle expandable rows without inspecting |
+| `i` | Inspect the selected change, artifact output, spec, or requirement |
+| `n` | Choose a workflow schema and create a change |
+| `a` | Confirm archive for active work or make archived work active |
+| `e` | Edit a safe active artifact output or canonical spec |
+| `v` | Validate an active change or canonical spec through OpenSpec |
+| `u` | Confirm undo of the latest lifecycle action in this session |
 | `/` | Filter index items |
 | `s` | Toggle index sorting |
 | `?` | Open configuration information |
 | `q` / `Q` / `Esc` | Quit from the root index |
 
-While editing an index filter, normal text updates the filter, `Backspace` deletes, `Enter` accepts, and `Esc` cancels.
+While editing an index filter or action prompt, normal text updates the input, `Backspace` deletes, `Enter` accepts, and `Esc` cancels. Archive updates canonical project specs through the official OpenSpec CLI. Reactivation moves the exact archived directory back to Active Work without reversing already-published specs.
+
+Only the latest successful archive or reactivation can be undone, and only during the current Dossier session. Before undo writes anything, Dossier fingerprints every affected post-operation path; external changes or destination collisions refuse the entire undo. Undoing archive restores the active change and exact pre-archive spec contents, while undoing reactivation returns the change to its original date-prefixed archive path.
+
+Read-only mode omits and blocks `n`, `a`, `e`, and `u`; inspect and validate remain available.
 
 #### Git tab and diff viewer
 
@@ -204,7 +227,7 @@ In requirement focus mode:
 
 ## Project structure
 
-dossier expects an `openspec/` directory at the project root:
+dossier expects an `openspec/` directory at the project root. The layout below is an illustrative `spec-driven` workflow; custom schemas may define arbitrary Markdown artifact IDs, nested paths, and multi-file outputs.
 
 ```
 openspec/

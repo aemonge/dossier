@@ -2,6 +2,9 @@
 # Default path: ${XDG_CONFIG_HOME:-~/.config}/dossier/config.toml
 # Every section is optional. Unspecified values inherit from the selected base.
 
+[ui]
+start_view = "index" # index (default) or change; explicit path launches bypass this
+
 [theme]
 base = "light" # none, dark, light, dracula, gruvbox-light-soft
 
@@ -247,10 +250,16 @@ open = ["e"]
 [keys.index]
 filter = ["/"]
 info = ["?"]
+new = ["n"]
+lifecycle = ["a"]
+inspect = ["i"]
+edit = ["e"]
+validate = ["v"]
+undo = ["u"]
 back = ["q", "Q", "esc"]
 down = ["j", "down"]
 up = ["k", "up"]
-open = ["l", "enter"]
+open = ["enter"]
 toggle = ["space"]
 sort = ["s"]
 

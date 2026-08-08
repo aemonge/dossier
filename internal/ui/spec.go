@@ -7,6 +7,9 @@ func (m Model) updateSpec(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch {
 
 	case matchesKey(msg, keys.Quit):
+		if m.lifecycle != nil {
+			m.lifecycle.Cleanup(m.lifecycleUndo)
+		}
 		return m, tea.Quit
 
 	case matchesKey(msg, keys.Back):
