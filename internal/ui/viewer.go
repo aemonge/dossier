@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/fselich/dossier/internal/git"
+	"github.com/aemonge/dossier/internal/git"
 )
 
 func (m Model) updateViewer(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {

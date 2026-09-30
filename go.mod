@@ -1,4 +1,4 @@
-module github.com/fselich/dossier
+module github.com/aemonge/dossier
 
 go 1.25.8
 

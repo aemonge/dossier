@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
+	"github.com/aemonge/dossier/internal/settings"
 	"github.com/alecthomas/chroma/v2"
-	"github.com/fselich/dossier/internal/settings"
 )
 
 func TestBuiltinThemesExist(t *testing.T) {

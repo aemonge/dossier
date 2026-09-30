@@ -5,7 +5,7 @@ import (
 	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/fselich/dossier/internal/settings"
+	"github.com/aemonge/dossier/internal/settings"
 )
 
 func (m Model) effectiveKeyMap() settings.KeyConfig {

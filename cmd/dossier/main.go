@@ -7,9 +7,9 @@ import (
 	"os"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/fselich/dossier/internal/openspec"
-	"github.com/fselich/dossier/internal/settings"
-	"github.com/fselich/dossier/internal/ui"
+	"github.com/aemonge/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/settings"
+	"github.com/aemonge/dossier/internal/ui"
 )
 
 var version string

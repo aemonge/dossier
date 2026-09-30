@@ -7,9 +7,9 @@ import (
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/glamour/v2"
-	"github.com/fselich/dossier/internal/git"
-	"github.com/fselich/dossier/internal/openspec"
-	"github.com/fselich/dossier/internal/settings"
+	"github.com/aemonge/dossier/internal/git"
+	"github.com/aemonge/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/settings"
 )
 
 type Mode int

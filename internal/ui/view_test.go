@@ -9,8 +9,8 @@ import (
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"github.com/fselich/dossier/internal/git"
-	"github.com/fselich/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/git"
+	"github.com/aemonge/dossier/internal/openspec"
 )
 
 func testLoader() *openspec.Loader {

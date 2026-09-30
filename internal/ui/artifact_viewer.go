@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/fselich/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/openspec"
 )
 
 type artifactSelection struct {

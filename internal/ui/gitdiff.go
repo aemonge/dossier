@@ -9,10 +9,10 @@ import (
 	"sync"
 
 	"charm.land/lipgloss/v2"
+	"github.com/aemonge/dossier/internal/git"
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
-	"github.com/fselich/dossier/internal/git"
 )
 
 type DiffLineType int

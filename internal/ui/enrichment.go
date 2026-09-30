@@ -8,7 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/fselich/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/openspec"
 )
 
 const (

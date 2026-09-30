@@ -3,8 +3,8 @@ package ui
 import (
 	"testing"
 
-	"github.com/fselich/dossier/internal/openspec"
-	"github.com/fselich/dossier/internal/settings"
+	"github.com/aemonge/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/settings"
 )
 
 func TestRootStartupDefaultsToIndex(t *testing.T) {

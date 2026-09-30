@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fselich/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/openspec"
 )
 
 type trackingStatusClient struct {

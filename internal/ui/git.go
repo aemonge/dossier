@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/fselich/dossier/internal/git"
+	"github.com/aemonge/dossier/internal/git"
 )
 
 func (m *Model) pollGitStatus() {

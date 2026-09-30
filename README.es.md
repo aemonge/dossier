@@ -28,21 +28,16 @@ Interfaz de terminal controlada por teclado para leer y navegar artefactos de pr
 
 ## Instalación
 
-**Requisitos:** terminal con soporte de color ANSI. Go 1.25 o posterior si compilas desde el código fuente.
+**Requisitos:** terminal con soporte de color ANSI. Go 1.25 o posterior.
 
 ```bash
-# Homebrew
-brew tap fselich/tap
-brew install dossier
+go install github.com/aemonge/dossier/cmd/dossier@latest
 
 # Desde el código fuente
-git clone https://github.com/fselich/dossier
+git clone https://github.com/aemonge/dossier
 cd dossier
 make build    # genera ./dossier
 make install  # instala mediante go install
-
-# Usando go install
-go install github.com/fselich/dossier/cmd/dossier@latest
 ```
 
 ---

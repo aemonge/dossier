@@ -6,8 +6,8 @@ import (
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
-	"github.com/fselich/dossier/internal/openspec"
-	"github.com/fselich/dossier/internal/settings"
+	"github.com/aemonge/dossier/internal/openspec"
+	"github.com/aemonge/dossier/internal/settings"
 )
 
 func TestCustomViewerNavigationReplacesDefaultBinding(t *testing.T) {

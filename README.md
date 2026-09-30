@@ -29,21 +29,16 @@ A keyboard-driven terminal UI for reading and navigating [OpenSpec](https://gith
 
 ## Installation
 
-**Requirements:** terminal with ANSI color support. Go 1.25 or later if building from source. The `openspec` executable is required for create, validate, and archive actions; navigation, inspection, reactivation, and eligible session undo remain available without it.
+**Requirements:** terminal with ANSI color support. Go 1.25 or later. The `openspec` executable is required for create, validate, and archive actions; navigation, inspection, reactivation, and eligible session undo remain available without it.
 
 ```bash
-# Homebrew
-brew tap fselich/tap
-brew install dossier
+go install github.com/aemonge/dossier/cmd/dossier@latest
 
 # From source
-git clone https://github.com/fselich/dossier
+git clone https://github.com/aemonge/dossier
 cd dossier
 make build    # produces ./dossier
 make install  # installs via go install
-
-# Using go install
-go install github.com/fselich/dossier/cmd/dossier@latest
 ```
 
 ---
