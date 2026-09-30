@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/aemonge/dossier/internal/openspec"
@@ -13,6 +14,18 @@ import (
 )
 
 var version string
+
+func resolveVersion() string {
+	if version != "" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return "dev"
+}
 
 type cliOptions struct {
 	themeName    string
@@ -83,7 +96,7 @@ func main() {
 	}
 
 	if opts.showVersion {
-		fmt.Println("dossier", version)
+		fmt.Println("dossier", resolveVersion())
 		os.Exit(0)
 	}
 
