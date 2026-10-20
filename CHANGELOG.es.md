@@ -2,7 +2,7 @@
 
 # Changelog
 
-## Sin publicar
+## v0.20.3
 
 ### Corregido
 - Los cambios que usan esquemas personalizados de OpenSpec cuyos archivos generados difieren de los ID de artefacto (p. ej. `1-idea.md`, `2-plan.md`, … de `ramona-plan`) ya no muestran cada archivo dos veces. Los artefactos enriquecidos por estado ahora reclaman sus archivos de salida, los artefactos descubiertos solo añaden archivos que el esquema no cubrió, y los sobrantes que comparten ID con un artefacto de estado se fusionan en él.

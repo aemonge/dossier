@@ -2,7 +2,7 @@
 
 # Changelog
 
-## Unreleased
+## v0.20.3
 
 ### Fixed
 - Changes using custom OpenSpec schemas whose generated filenames differ from the artifact IDs (e.g. `ramona-plan`'s `1-idea.md`, `2-plan.md`, …) no longer show every artifact file twice. Status-enriched artifacts now claim their output files, discovered fallback artifacts only add files the schema didn't account for, and leftovers sharing a status artifact's ID are merged into it.
