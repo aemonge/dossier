@@ -305,3 +305,180 @@ func TestEnrichChangeFromStatus(t *testing.T) {
 		t.Fatalf("expected unmatched fallback artifact, got %#v", notes)
 	}
 }
+
+func TestEnrichChangeCustomSchemaOutputsNotDuplicated(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "openspec", "changes", "demo")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		".openspec.yaml": "schema: ramona-plan\ncreated: 2026-10-20\n",
+		"1-idea.md":      "# Idea",
+		"2-plan.md":      "# Plan",
+		"3-execution.md": "# Execution",
+		"4-tasks.md":     "# Tasks",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loader := NewLoader(OSFS{})
+	project, err := loader.LoadFrom(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := project.Changes[0]
+
+	schemaArtifacts := []struct {
+		id         string
+		outputPath string
+	}{
+		{"idea", "1-idea.md"},
+		{"plan", "2-plan.md"},
+		{"execution", "3-execution.md"},
+		{"tasks", "4-tasks.md"},
+	}
+	status := ChangeStatus{
+		ChangeName:    "demo",
+		SchemaName:    "ramona-plan",
+		ChangeRoot:    dir,
+		ArtifactPaths: map[string]ArtifactPathStatus{},
+		Artifacts:     []StatusArtifact{},
+	}
+	for _, artifact := range schemaArtifacts {
+		absolute := filepath.Join(dir, artifact.outputPath)
+		status.ArtifactPaths[artifact.id] = ArtifactPathStatus{
+			OutputPath:          artifact.outputPath,
+			ResolvedOutputPath:  absolute,
+			ExistingOutputPaths: []string{absolute},
+		}
+		status.Artifacts = append(status.Artifacts, StatusArtifact{ID: artifact.id, OutputPath: artifact.outputPath, Status: "done"})
+	}
+
+	enriched := loader.EnrichChange(change, status)
+	wantIDs := make([]string, 0, len(schemaArtifacts))
+	for _, artifact := range schemaArtifacts {
+		wantIDs = append(wantIDs, artifact.id)
+	}
+	if len(enriched.Artifacts) != len(wantIDs) {
+		t.Fatalf("expected %d artifacts, got %#v", len(wantIDs), enriched.Artifacts)
+	}
+	seenPaths := make(map[string]int)
+	for i, id := range wantIDs {
+		if enriched.Artifacts[i].ID != id {
+			t.Errorf("artifact %d: expected %q, got %q", i, id, enriched.Artifacts[i].ID)
+		}
+		if enriched.Artifacts[i].Source != ArtifactSourceStatus {
+			t.Errorf("artifact %q: expected status source, got %q", id, enriched.Artifacts[i].Source)
+		}
+		for _, output := range enriched.Artifacts[i].Outputs {
+			seenPaths[output.RelativePath]++
+		}
+	}
+	for _, artifact := range schemaArtifacts {
+		if seenPaths[artifact.outputPath] != 1 {
+			t.Errorf("output %s shown %d times, want exactly once", artifact.outputPath, seenPaths[artifact.outputPath])
+		}
+	}
+	if enriched.Diagnostic != "" {
+		t.Fatalf("expected no diagnostics, got %q", enriched.Diagnostic)
+	}
+}
+
+func TestEnrichChangeSameIDFallbackDonatesUnclaimedOutputs(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "openspec", "changes", "merge-specs")
+	if err := os.MkdirAll(filepath.Join(dir, "specs", "extra"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "specs", "auth"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		".openspec.yaml":       "schema: spec-driven\ncreated: 2026-10-20\n",
+		"proposal.md":          "# Proposal",
+		"specs/auth/spec.md":   "# Auth delta",
+		"specs/extra/notes.md": "# Extra notes",
+	}
+	for name, content := range files {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(name)), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loader := NewLoader(OSFS{})
+	project, err := loader.LoadFrom(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	change := project.Changes[0]
+
+	// Status only knows about specs/auth/spec.md (e.g. a narrower pattern);
+	// discovery also found specs/extra/notes.md under the same "specs" ID.
+	status := ChangeStatus{
+		ChangeName: "merge-specs",
+		SchemaName: "spec-driven",
+		ChangeRoot: dir,
+		ArtifactPaths: map[string]ArtifactPathStatus{
+			"proposal": {
+				OutputPath:          "proposal.md",
+				ExistingOutputPaths: []string{filepath.Join(dir, "proposal.md")},
+			},
+			"specs": {
+				OutputPath:          "specs/**/spec.md",
+				ExistingOutputPaths: []string{filepath.Join(dir, "specs", "auth", "spec.md")},
+			},
+		},
+		Artifacts: []StatusArtifact{
+			{ID: "proposal", OutputPath: "proposal.md", Status: "done"},
+			{ID: "specs", OutputPath: "specs/**/spec.md", Status: "done"},
+		},
+	}
+
+	enriched := loader.EnrichChange(change, status)
+	wantIDs := []string{"proposal", "specs"}
+	if len(enriched.Artifacts) != len(wantIDs) {
+		t.Fatalf("expected %d artifacts, got %#v", len(wantIDs), enriched.Artifacts)
+	}
+	specs, _ := enriched.ArtifactByID("specs")
+	wantPaths := []string{"specs/auth/spec.md", "specs/extra/notes.md"}
+	if len(specs.Outputs) != len(wantPaths) {
+		t.Fatalf("expected specs outputs %v, got %#v", wantPaths, specs.Outputs)
+	}
+	for i, want := range wantPaths {
+		if specs.Outputs[i].RelativePath != want {
+			t.Errorf("specs output %d: expected %q, got %q", i, want, specs.Outputs[i].RelativePath)
+		}
+	}
+	if specs.Outputs[1].Content != "# Extra notes" {
+		t.Errorf("donated output content: expected %q, got %q", "# Extra notes", specs.Outputs[1].Content)
+	}
+}
+
+func TestCLIStatusAll(t *testing.T) {
+	runner := &fakeOpenSpecRunner{stdout: []byte(`{
+  "changes": [
+    {"changeName": "alpha", "schemaName": "ramona-plan", "artifacts": [{"id": "idea", "outputPath": "1-idea.md", "status": "done"}]},
+    {"changeName": "beta", "schemaName": "spec-driven", "artifacts": [{"id": "proposal", "outputPath": "proposal.md", "status": "ready"}]}
+  ]
+}`)}
+	client := NewCLI(runner)
+
+	statuses, err := client.StatusAll("/project")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(statuses) != 2 {
+		t.Fatalf("expected 2 statuses, got %d", len(statuses))
+	}
+	if statuses[0].ChangeName != "alpha" || statuses[0].SchemaName != "ramona-plan" {
+		t.Fatalf("unexpected first status: %#v", statuses[0])
+	}
+	if len(statuses[0].Artifacts) != 1 || statuses[0].Artifacts[0].ID != "idea" {
+		t.Fatalf("unexpected artifacts: %#v", statuses[0].Artifacts)
+	}
+	if runner.args[0] != "status" || runner.args[1] != "--all" || runner.args[2] != "--json" {
+		t.Fatalf("expected batch invocation, got %v", runner.args)
+	}
+}

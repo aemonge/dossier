@@ -428,8 +428,16 @@ func (m Model) editIndexItem(item indexItem) (Model, tea.Cmd) {
 
 func (m *Model) reloadIndex(targetIdentity string) {
 	if project, err := m.loader.LoadFrom(m.root); err == nil {
+		// Fingerprints must capture the discovered state (pre-enrichment),
+		// otherwise every later adoption comparison mismatches.
+		discovered := discoveryFingerprints(project.Changes)
+		// Editor return must not swap schema-declared artifact rows back to
+		// filename-stem discovery IDs: re-apply cached status synchronously.
+		for i := range project.Changes {
+			project.Changes[i] = m.applyCachedStatus(project.Changes[i])
+		}
 		m.project = project
-		m.discoveryFingerprints = discoveryFingerprints(project.Changes)
+		m.discoveryFingerprints = discovered
 		m.enrichedFingerprints = make(map[string]string)
 		m.pendingEnrichments = make(map[string]string)
 	}

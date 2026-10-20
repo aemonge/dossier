@@ -86,8 +86,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case statusEnrichmentMsg:
-		m.applyStatusEnrichment(msg)
-		if (m.mode == ModeNormal || m.mode == ModeViewingArchive) && m.vpReady {
+		_, currentArtifactChanged := m.applyStatusEnrichment(msg)
+		if currentArtifactChanged && m.vpReady {
 			return m, m.loadViewport()
 		}
 		return m, nil

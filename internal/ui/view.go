@@ -100,7 +100,7 @@ func (m *Model) renderTabBar() string {
 	if ch != nil {
 		parts = make([]string, 0, len(ch.Artifacts)+1)
 		for artifactIndex, artifact := range ch.Artifacts {
-			label := artifact.ID + artifactTabStatusSuffix(artifact)
+			label := artifactDisplayLabel(artifact) + artifactTabStatusSuffix(artifact)
 			if !m.viewingCode && artifact.ID == m.artifactSelection.ArtifactID {
 				selectedPart = artifactIndex
 				parts = append(parts, m.theme.Styles.TabActive.Render(label))

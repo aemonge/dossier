@@ -80,6 +80,9 @@ func (m *Model) scheduleStatusEnrichment() tea.Cmd {
 	if m.enrichmentRetryAfter == nil {
 		m.enrichmentRetryAfter = make(map[string]time.Time)
 	}
+	if m.lastStatusByName == nil {
+		m.lastStatusByName = make(map[string]openspec.ChangeStatus)
+	}
 
 	now := time.Now()
 	requests := make([]statusEnrichmentRequest, 0, len(m.project.Changes))
@@ -146,9 +149,13 @@ func (m Model) loadSchemaCatalog() tea.Cmd {
 	}
 }
 
-func (m *Model) applyStatusEnrichment(msg statusEnrichmentMsg) {
+// applyStatusEnrichment merges authoritative status results into the model.
+// It reports whether the index was rebuilt and whether the currently viewed
+// artifact changed, so callers avoid redundant viewport reloads: a status
+// result that reproduces the exact enriched state refreshes nothing.
+func (m *Model) applyStatusEnrichment(msg statusEnrichmentMsg) (indexRefreshed, currentArtifactChanged bool) {
 	if m.project == nil {
-		return
+		return false, false
 	}
 	changed := false
 	for _, result := range msg.Results {
@@ -167,19 +174,31 @@ func (m *Model) applyStatusEnrichment(msg statusEnrichmentMsg) {
 			m.enrichmentRetryAfter[result.ChangeName] = time.Now().Add(statusRetryDelay)
 			continue
 		}
-		m.project.Changes[index] = m.loader.EnrichChange(m.project.Changes[index], result.Status)
+		if m.lastStatusByName == nil {
+			m.lastStatusByName = make(map[string]openspec.ChangeStatus)
+		}
+		m.lastStatusByName[result.ChangeName] = result.Status
+		before := changeDiscoveryFingerprint(m.project.Changes[index])
+		enriched := m.loader.EnrichChange(m.project.Changes[index], result.Status)
+		m.enrichedFingerprints[result.ChangeName] = result.Fingerprint
+		delete(m.enrichmentRetryAfter, result.ChangeName)
+		if changeDiscoveryFingerprint(enriched) == before {
+			continue
+		}
+		m.project.Changes[index] = enriched
 		m.invalidateArtifactRenderCache(result.ChangeName)
 		if m.mode == ModeNormal && index == m.changeIdx {
 			m.reconcileArtifactSelection()
+			currentArtifactChanged = true
 		}
-		m.enrichedFingerprints[result.ChangeName] = result.Fingerprint
-		delete(m.enrichmentRetryAfter, result.ChangeName)
 		changed = true
 	}
 	if changed && m.mode == ModeIndex && m.vpReady {
 		m.rebuildIndexPreservingCursor()
 		m.refreshIndexViewport()
+		indexRefreshed = true
 	}
+	return indexRefreshed, currentArtifactChanged
 }
 
 func changeIndexByName(changes []openspec.Change, name string) int {
@@ -218,27 +237,50 @@ func (m *Model) adoptDiscoveredChange(index int, fresh openspec.Change) bool {
 	if m.enrichmentRetryAfter == nil {
 		m.enrichmentRetryAfter = make(map[string]time.Time)
 	}
+	if m.lastStatusByName == nil {
+		m.lastStatusByName = make(map[string]openspec.ChangeStatus)
+	}
 	fingerprint := changeDiscoveryFingerprint(fresh)
 	if m.discoveryFingerprints[fresh.Name] == fingerprint {
 		return false
 	}
 	oldName := m.project.Changes[index].Name
+	// Capture the selection position before replacing so ModeNormal keeps
+	// the nearest surviving artifact instead of resetting to the default.
+	oldChange := m.project.Changes[index]
+	oldArtifactIndex, oldOutputIndex := artifactSelectionPosition(&oldChange, m.artifactSelection)
+	// Re-apply the last known status synchronously so schema-declared
+	// artifact identities survive disk reloads; the async refresh still
+	// runs (enrichedFingerprints is cleared below) to correct stale status.
+	fresh = m.applyCachedStatus(fresh)
 	m.project.Changes[index] = fresh
 	m.invalidateArtifactRenderCache(oldName)
 	if m.mode == ModeNormal && index == m.changeIdx {
-		m.reconcileArtifactSelection()
+		m.reconcileArtifactSelectionNear(oldArtifactIndex, oldOutputIndex)
 	}
 	if oldName != fresh.Name {
 		delete(m.discoveryFingerprints, oldName)
 		delete(m.enrichedFingerprints, oldName)
 		delete(m.pendingEnrichments, oldName)
 		delete(m.enrichmentRetryAfter, oldName)
+		delete(m.lastStatusByName, oldName)
 	}
 	m.discoveryFingerprints[fresh.Name] = fingerprint
 	delete(m.enrichedFingerprints, fresh.Name)
 	delete(m.pendingEnrichments, fresh.Name)
 	delete(m.enrichmentRetryAfter, fresh.Name)
 	return true
+}
+
+func (m *Model) applyCachedStatus(change openspec.Change) openspec.Change {
+	if m.loader == nil {
+		return change
+	}
+	status, ok := m.lastStatusByName[change.Name]
+	if !ok {
+		return change
+	}
+	return m.loader.EnrichChange(change, status)
 }
 
 func (m *Model) adoptDiscoveredProject(fresh *openspec.Project) {
@@ -257,6 +299,9 @@ func (m *Model) adoptDiscoveredProject(fresh *openspec.Project) {
 	if m.enrichmentRetryAfter == nil {
 		m.enrichmentRetryAfter = make(map[string]time.Time)
 	}
+	if m.lastStatusByName == nil {
+		m.lastStatusByName = make(map[string]openspec.ChangeStatus)
+	}
 	oldByName := make(map[string]openspec.Change)
 	if m.project != nil {
 		for _, change := range m.project.Changes {
@@ -273,7 +318,9 @@ func (m *Model) adoptDiscoveredProject(fresh *openspec.Project) {
 			changes[index] = old
 			continue
 		}
-		changes[index] = change
+		// Disk state changed (or the change is new): keep schema identities
+		// stable by re-applying the cached status synchronously.
+		changes[index] = m.applyCachedStatus(change)
 		delete(m.enrichedFingerprints, change.Name)
 		delete(m.pendingEnrichments, change.Name)
 		delete(m.enrichmentRetryAfter, change.Name)
@@ -285,6 +332,7 @@ func (m *Model) adoptDiscoveredProject(fresh *openspec.Project) {
 		delete(m.enrichedFingerprints, name)
 		delete(m.pendingEnrichments, name)
 		delete(m.enrichmentRetryAfter, name)
+		delete(m.lastStatusByName, name)
 	}
 	m.project = &openspec.Project{Name: fresh.Name, Changes: changes}
 	m.discoveryFingerprints = newFingerprints
@@ -309,5 +357,6 @@ func (m *Model) reconcileDiscoveryFingerprints() {
 		delete(m.enrichedFingerprints, name)
 		delete(m.pendingEnrichments, name)
 		delete(m.enrichmentRetryAfter, name)
+		delete(m.lastStatusByName, name)
 	}
 }

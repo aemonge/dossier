@@ -2,6 +2,7 @@ package ui
 
 import (
 	"path/filepath"
+	"sync"
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
@@ -181,6 +182,7 @@ type Model struct {
 	enrichedFingerprints  map[string]string
 	pendingEnrichments    map[string]string
 	enrichmentRetryAfter  map[string]time.Time
+	lastStatusByName      map[string]openspec.ChangeStatus
 
 	vp      viewport.Model
 	vpReady bool
@@ -205,6 +207,7 @@ type Model struct {
 	mode                Mode
 	prevMode            Mode
 	returnIndexIdentity string
+	returnIndexAnchor   cursorAnchor
 	index               indexState
 	projectSpecs        []openspec.ProjectSpec
 	specViewer          specViewerState
@@ -232,6 +235,7 @@ func newModel(project *openspec.Project, cfg openspec.ProjectConfig, root string
 		enrichedFingerprints:  make(map[string]string),
 		pendingEnrichments:    make(map[string]string),
 		enrichmentRetryAfter:  make(map[string]time.Time),
+		lastStatusByName:      make(map[string]openspec.ChangeStatus),
 		artifactRenderCache:   make(map[artifactOutputIdentity]string),
 		projectConfig:         cfg,
 		theme:                 theme,
@@ -248,6 +252,9 @@ func newModel(project *openspec.Project, cfg openspec.ProjectConfig, root string
 		}
 	}
 	m.pollGitStatus()
+	// First paint must already be schema-aware: a bounded synchronous
+	// status pass prevents the discovered→enriched identity swap flash.
+	m.bootstrapEnrichment()
 	if len(project.Changes) > 0 {
 		m.selectDefaultArtifact()
 		m.loadTaskItems()
@@ -268,6 +275,96 @@ func newModel(project *openspec.Project, cfg openspec.ProjectConfig, root string
 		m.mode = ModeIndex
 	}
 	return m
+}
+
+const bootstrapEnrichmentBudget = 750 * time.Millisecond
+
+// batchStatusClient is implemented by clients that can fetch every change's
+// status in one CLI invocation. Production models use *openspec.CLI; test
+// stubs may omit it and fall back to bounded per-change lookups.
+type batchStatusClient interface {
+	StatusAll(root string) ([]openspec.ChangeStatus, error)
+}
+
+// bootstrapEnrichment runs one bounded synchronous status pass before the
+// first paint so the hierarchy never renders discovered (filename-stem)
+// artifact IDs that swap for schema-declared ones moments later. Changes
+// that miss the budget (slow or absent CLI) degrade to the async enrichment
+// path exactly as before.
+func (m *Model) bootstrapEnrichment() {
+	if m.openSpec == nil || m.project == nil || len(m.project.Changes) == 0 {
+		return
+	}
+	collected := m.collectBootstrapStatuses()
+	for i := range m.project.Changes {
+		status, ok := collected[m.project.Changes[i].Name]
+		if !ok {
+			continue
+		}
+		discovered := changeDiscoveryFingerprint(m.project.Changes[i])
+		enriched := m.loader.EnrichChange(m.project.Changes[i], status)
+		m.lastStatusByName[m.project.Changes[i].Name] = status
+		m.enrichedFingerprints[m.project.Changes[i].Name] = discovered
+		if changeDiscoveryFingerprint(enriched) != discovered {
+			m.project.Changes[i] = enriched
+		}
+	}
+}
+
+func (m *Model) collectBootstrapStatuses() map[string]openspec.ChangeStatus {
+	done := make(chan map[string]openspec.ChangeStatus, 1)
+	go func() {
+		done <- m.runBootstrapStatusPass()
+	}()
+	select {
+	case statuses := <-done:
+		return statuses
+	case <-time.After(bootstrapEnrichmentBudget):
+		// Stragglers finish into the buffered channel; missing changes
+		// degrade to the async enrichment path.
+		return nil
+	}
+}
+
+func (m *Model) runBootstrapStatusPass() map[string]openspec.ChangeStatus {
+	// Preferred: one `openspec status --all` invocation — a single process
+	// spawn where per-change lookups would pay CLI startup once per change.
+	if batch, ok := m.openSpec.(batchStatusClient); ok {
+		if statuses, err := batch.StatusAll(m.root); err == nil {
+			byName := make(map[string]openspec.ChangeStatus, len(statuses))
+			for _, status := range statuses {
+				byName[status.ChangeName] = status
+			}
+			return byName
+		}
+	}
+	// Fallback for clients without batch support: bounded per-change calls.
+	byName := make(map[string]openspec.ChangeStatus)
+	var mu sync.Mutex
+	jobs := make(chan int)
+	workers := min(maxConcurrentStatus, len(m.project.Changes))
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for range workers {
+		go func() {
+			defer wg.Done()
+			for i := range jobs {
+				change := m.project.Changes[i]
+				status, err := m.openSpec.Status(m.root, change.Name)
+				if err == nil {
+					mu.Lock()
+					byName[change.Name] = status
+					mu.Unlock()
+				}
+			}
+		}()
+	}
+	for i := range m.project.Changes {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
+	return byName
 }
 
 func NewSinglePath(project *openspec.Project, cfg openspec.ProjectConfig, root string, loader *openspec.Loader, theme Theme, keyMap settings.KeyConfig, readOnly bool) Model {
@@ -368,26 +465,38 @@ func (m *Model) mergeReloadedChange(fresh openspec.Change) (tasksChanged bool, v
 	if ch == nil || m.mode != ModeNormal || m.changeIdx < 0 || m.changeIdx >= len(m.project.Changes) {
 		return false, false
 	}
-	oldFingerprint := changeDiscoveryFingerprint(*ch)
+	// Disk-change detection must compare DISCOVERY fingerprints: the current
+	// change is enriched, so hashing it directly never matches a discovered
+	// reload — that mismatch re-stomped the enriched state and re-rendered
+	// the viewport on every 500 ms tick.
+	oldFingerprint := m.discoveryFingerprints[ch.Name]
+	if oldFingerprint == "" {
+		oldFingerprint = changeDiscoveryFingerprint(*ch)
+	}
 	newFingerprint := changeDiscoveryFingerprint(fresh)
 	if oldFingerprint == newFingerprint {
 		return false, false
 	}
 	_, oldTasks, _ := artifactOutputByID(ch, "tasks")
-	_, newTasks, _ := artifactOutputByID(&fresh, "tasks")
-	oldTaskContent, newTaskContent := "", ""
+	oldTaskContent := ""
 	if oldTasks != nil {
 		oldTaskContent = oldTasks.Content
 	}
+	selectedBefore := m.artifactSelection
+	oldArtifactIndex, oldOutputIndex := artifactSelectionPosition(ch, selectedBefore)
+	// Adoption is the single writer: it re-applies the cached status so the
+	// change never passes through the discovered-ID intermediate state.
+	if !m.adoptDiscoveredChange(m.changeIdx, fresh) {
+		m.project.Changes[m.changeIdx] = fresh
+	}
+	adopted := m.project.Changes[m.changeIdx]
+	_, newTasks, _ := artifactOutputByID(&adopted, "tasks")
+	newTaskContent := ""
 	if newTasks != nil {
 		newTaskContent = newTasks.Content
 	}
 	tasksChanged = oldTaskContent != newTaskContent
-
-	selectedBefore := m.artifactSelection
-	oldArtifactIndex, oldOutputIndex := artifactSelectionPosition(ch, selectedBefore)
-	m.project.Changes[m.changeIdx] = fresh
-	m.invalidateArtifactRenderCache(fresh.Name)
+	m.invalidateArtifactRenderCache(adopted.Name)
 	m.reconcileArtifactSelectionNear(oldArtifactIndex, oldOutputIndex)
 	viewportDirty = !m.viewingCode && (selectedBefore != m.artifactSelection || oldFingerprint != newFingerprint)
 	if tasksChanged {

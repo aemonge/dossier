@@ -187,7 +187,16 @@ func (m *Model) enterIndex() {
 	m.index.ExpandedSpecs = make(map[int]bool)
 	m.buildIndexItems()
 	m.index.Cursor = 0
-	if restored := indexItemByIdentity(m.index.Items, m.returnIndexIdentity); restored >= 0 {
+	restored := -1
+	if m.returnIndexIdentity != "" {
+		restored = indexItemByIdentity(m.index.Items, m.returnIndexIdentity)
+		if restored < 0 {
+			// Artifact IDs may have swapped (discovery ↔ schema) while
+			// away: re-anchor by (change, output path) before dropping to 0.
+			restored = m.indexItemByAnchor(m.returnIndexAnchor)
+		}
+	}
+	if restored >= 0 {
 		m.index.Cursor = restored
 	}
 	m.mode = ModeIndex
@@ -234,7 +243,11 @@ func (m *Model) matchesFilter(item indexItem, lowerQuery string) bool {
 	case indexKindArtifact:
 		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
 			artifact := change.Artifacts[item.artifactIdx]
-			return contains(artifact.ID, artifact.OutputPattern, strings.Join(artifact.Requires, " "))
+			outputNames := make([]string, 0, len(artifact.Outputs))
+			for _, output := range artifact.Outputs {
+				outputNames = append(outputNames, output.RelativePath)
+			}
+			return contains(artifact.ID, artifactDisplayLabel(artifact), artifact.OutputPattern, strings.Join(artifact.Requires, " "), strings.Join(outputNames, " "))
 		}
 	case indexKindArtifactOutput:
 		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
@@ -449,11 +462,23 @@ func (m *Model) selectedIndexIdentity() string {
 }
 
 func (m *Model) rebuildIndexPreservingCursor() {
-	identity := m.selectedIndexIdentity()
+	rawCursor := m.rawCursorIndex()
+	identity := ""
+	var anchor cursorAnchor
+	if rawCursor >= 0 && rawCursor < len(m.index.Items) {
+		identity = m.index.Items[rawCursor].identity
+		anchor = m.cursorAnchor(rawCursor)
+	}
 	m.buildIndexItems()
 	m.applyFilter()
 	if identity != "" {
 		rawIndex := indexItemByIdentity(m.index.Items, identity)
+		if rawIndex < 0 {
+			// Enrichment swaps discovery-derived artifact IDs (filename
+			// stems) for schema-declared ones: re-anchor the cursor by
+			// (change, output path) instead of dropping it to the clamp.
+			rawIndex = m.indexItemByAnchor(anchor)
+		}
 		if rawIndex >= 0 {
 			if m.index.FilterIndices == nil {
 				m.index.Cursor = rawIndex
@@ -468,6 +493,90 @@ func (m *Model) rebuildIndexPreservingCursor() {
 		}
 	}
 	m.index.Cursor = min(m.index.Cursor, max(0, m.visibleItemCount()-1))
+}
+
+// cursorAnchor is a rebuild-stable pointer to a hierarchy row: the change
+// identity plus (when known) a concrete output file path, which survives
+// artifact-ID swaps between discovery and status enrichment.
+type cursorAnchor struct {
+	changeIdentity string
+	outputPath     string
+}
+
+func (m *Model) rawCursorIndex() int {
+	if m.index.Cursor < 0 || m.index.Cursor >= m.visibleItemCount() {
+		return -1
+	}
+	if m.index.FilterIndices == nil {
+		return m.index.Cursor
+	}
+	if m.index.Cursor >= len(m.index.FilterIndices) {
+		return -1
+	}
+	return m.index.FilterIndices[m.index.Cursor]
+}
+
+func (m *Model) cursorAnchor(rawIndex int) cursorAnchor {
+	if rawIndex < 0 || rawIndex >= len(m.index.Items) {
+		return cursorAnchor{}
+	}
+	item := m.index.Items[rawIndex]
+	split := strings.Index(item.identity, ":artifact:")
+	if split < 0 {
+		return cursorAnchor{}
+	}
+	anchor := cursorAnchor{changeIdentity: item.identity[:split]}
+	change, ok := m.indexItemChange(item)
+	if !ok || item.artifactIdx < 0 || item.artifactIdx >= len(change.Artifacts) {
+		return anchor
+	}
+	artifact := change.Artifacts[item.artifactIdx]
+	switch item.kind {
+	case indexKindArtifactOutput:
+		if item.outputIdx >= 0 && item.outputIdx < len(artifact.Outputs) {
+			anchor.outputPath = artifact.Outputs[item.outputIdx].RelativePath
+		}
+	case indexKindArtifact:
+		if len(artifact.Outputs) > 0 {
+			anchor.outputPath = artifact.Outputs[0].RelativePath
+		}
+	}
+	return anchor
+}
+
+func (m *Model) indexItemByAnchor(anchor cursorAnchor) int {
+	if anchor.changeIdentity == "" {
+		return -1
+	}
+	prefix := anchor.changeIdentity + ":artifact:"
+	firstArtifact := -1
+	for i := range m.index.Items {
+		item := m.index.Items[i]
+		if !strings.HasPrefix(item.identity, prefix) {
+			continue
+		}
+		if item.kind == indexKindArtifact && firstArtifact < 0 {
+			firstArtifact = i
+		}
+		if anchor.outputPath == "" {
+			continue
+		}
+		switch item.kind {
+		case indexKindArtifactOutput:
+			if strings.HasSuffix(item.identity, ":output:"+anchor.outputPath) {
+				return i
+			}
+		case indexKindArtifact:
+			if change, ok := m.indexItemChange(item); ok && item.artifactIdx >= 0 && item.artifactIdx < len(change.Artifacts) {
+				for _, output := range change.Artifacts[item.artifactIdx].Outputs {
+					if output.RelativePath == anchor.outputPath {
+						return i
+					}
+				}
+			}
+		}
+	}
+	return firstArtifact
 }
 
 func (m *Model) refreshIndexViewport() {
@@ -878,16 +987,39 @@ func (m *Model) buildArtifactIDWidth() int {
 	if m.project != nil {
 		for _, change := range m.project.Changes {
 			for _, artifact := range change.Artifacts {
-				width = max(width, lipgloss.Width(artifact.ID))
+				width = max(width, lipgloss.Width(artifactDisplayLabel(artifact)))
 			}
 		}
 	}
 	for _, change := range m.index.ArchiveChanges {
 		for _, artifact := range change.Artifacts {
-			width = max(width, lipgloss.Width(artifact.ID))
+			width = max(width, lipgloss.Width(artifactDisplayLabel(artifact)))
 		}
 	}
 	return min(width, 24)
+}
+
+// artifactDisplayLabel names an artifact row by what is actually read from
+// disk: when the artifact resolves to exactly one present output file, its
+// display name (e.g. "1-idea" for ramona-plan's 1-idea.md) is shown instead
+// of the bare schema ID, so custom naming schemes stay visible. Multi-output
+// artifacts (e.g. "specs") and not-yet-written artifacts keep the schema ID.
+func artifactDisplayLabel(artifact openspec.ChangeArtifact) string {
+	label := ""
+	present := 0
+	for _, output := range artifact.Outputs {
+		if !output.Present {
+			continue
+		}
+		present++
+		if label == "" {
+			label = output.DisplayName
+		}
+	}
+	if present == 1 && label != "" {
+		return label
+	}
+	return artifact.ID
 }
 
 func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool, contentWidth, idWidth int) string {
@@ -895,7 +1027,7 @@ func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexI
 	if cursor {
 		cursorMark = "  " + m.theme.Styles.ProgressDone.Render("▶") + " "
 	}
-	id := truncateIndexText(artifact.ID, idWidth)
+	id := truncateIndexText(artifactDisplayLabel(artifact), idWidth)
 	name := m.theme.Styles.BaseText.Render(id)
 	if cursor {
 		name = m.theme.Styles.IndexActive.Render(id)
@@ -1140,6 +1272,9 @@ func (m Model) toggleIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 
 func (m Model) inspectIndexItem(item indexItem) (tea.Model, tea.Cmd) {
 	m.returnIndexIdentity = item.identity
+	if rawIndex := indexItemByIdentity(m.index.Items, item.identity); rawIndex >= 0 {
+		m.returnIndexAnchor = m.cursorAnchor(rawIndex)
+	}
 	m.artifactRenderCache = make(map[artifactOutputIdentity]string)
 	switch item.kind {
 	case indexKindActive:

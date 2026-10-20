@@ -226,6 +226,24 @@ func (c *CLI) Status(root, changeName string) (ChangeStatus, error) {
 	return status, nil
 }
 
+// StatusAll fetches status for every active change in a single CLI
+// invocation (`openspec status --all --json`) — one process spawn instead
+// of one per change, which dominates startup time for multi-change repos.
+func (c *CLI) StatusAll(root string) ([]ChangeStatus, error) {
+	args := []string{"status", "--all", "--json"}
+	stdout, err := c.run(root, args)
+	if err != nil {
+		return nil, err
+	}
+	var response struct {
+		Changes []ChangeStatus `json:"changes"`
+	}
+	if err := json.Unmarshal(stdout, &response); err != nil {
+		return nil, fmt.Errorf("decode openspec %s: %w", strings.Join(args, " "), err)
+	}
+	return response.Changes, nil
+}
+
 func (c *CLI) runJSON(root string, args []string, target any) error {
 	stdout, err := c.run(root, args)
 	if err != nil {
@@ -267,9 +285,9 @@ func (l *Loader) EnrichChange(ch Change, status ChangeStatus) Change {
 	}
 
 	ch.Artifacts = make([]ChangeArtifact, 0, len(status.Artifacts)+len(fallback))
-	seen := make(map[string]bool, len(status.Artifacts))
+	statusIndexByID := make(map[string]int, len(status.Artifacts))
+	claimed := make(map[string]bool)
 	for _, raw := range status.Artifacts {
-		seen[raw.ID] = true
 		pathStatus := status.ArtifactPaths[raw.ID]
 		outputPattern := raw.OutputPath
 		if outputPattern == "" {
@@ -292,6 +310,7 @@ func (l *Loader) EnrichChange(ch Change, status ChangeStatus) Change {
 			if err != nil {
 				if fallbackOutput, ok := findFallbackOutput(fallbackByID[raw.ID], relativePath); ok {
 					artifact.Outputs = append(artifact.Outputs, fallbackOutput)
+					claimed[relativePath] = true
 					continue
 				}
 				appendChangeDiagnostic(&ch, fmt.Sprintf("read status output %s: %v", relativePath, err))
@@ -303,15 +322,43 @@ func (l *Loader) EnrichChange(ch Change, status ChangeStatus) Change {
 				Content:      string(content),
 				Present:      true,
 			})
+			claimed[relativePath] = true
 		}
+		statusIndexByID[raw.ID] = len(ch.Artifacts)
 		ch.Artifacts = append(ch.Artifacts, artifact)
 	}
+	// Custom schemas generate outputs whose filename stems differ from the
+	// schema artifact IDs (e.g. artifact "idea" generating "1-idea.md"), so
+	// discovery-derived artifacts must never re-show a file a status artifact
+	// already carries: filter fallback outputs to unclaimed paths, donate
+	// same-ID leftovers to their status artifact, and drop emptied artifacts.
 	for _, artifact := range fallback {
-		if !seen[artifact.ID] {
-			ch.Artifacts = append(ch.Artifacts, artifact)
+		unclaimed := unclaimedOutputs(artifact.Outputs, claimed)
+		if len(unclaimed) == 0 {
+			continue
 		}
+		for _, output := range unclaimed {
+			claimed[output.RelativePath] = true
+		}
+		if index, ok := statusIndexByID[artifact.ID]; ok {
+			ch.Artifacts[index].Outputs = append(ch.Artifacts[index].Outputs, unclaimed...)
+			continue
+		}
+		artifact.Outputs = unclaimed
+		ch.Artifacts = append(ch.Artifacts, artifact)
 	}
 	return ch
+}
+
+func unclaimedOutputs(outputs []ArtifactOutput, claimed map[string]bool) []ArtifactOutput {
+	var remaining []ArtifactOutput
+	for _, output := range outputs {
+		if claimed[output.RelativePath] {
+			continue
+		}
+		remaining = append(remaining, output)
+	}
+	return remaining
 }
 
 func parseArtifactStatus(status string, ch *Change) ArtifactStatus {
