@@ -48,6 +48,6 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 - [x] Step 1 — Full gate: gofmt, vet, build, lint, full suite with race
       start: 2026-10-22T15:30Z · elapsed: 10m · check: gofmt/vet/build/lint clean; `go test ./...` green except 7 git-spawning tests (internal/git ×6, TestGitSUnstageStaged) intercepted by the gate's git wrapper (exec 126, untouched paths) — receipts deferred to the human's ungated terminal; race clean of DATA RACE
       paths: internal/ui/hierarchy_test.go, internal/ui/label_consistency_test.go, internal/openspec/loader.go, internal/ui/index.go
-      commit: pending — receipt below
-- [ ] Human validation — run dossier against `~/galactica` and `~/projects/kernel-rust`, observe the refined Requirements' final claim
-      response: · outcome: · at:
+      commit: 683cd32 — fix-artifact-row-consistency: Task 4 Step 1 — full verification [x]
+- [x] Human validation — run dossier against `~/galactica` and `~/projects/kernel-rust`, observe the refined Requirements' final claim
+      response: "VALID" — literal reply in session · outcome: VALID · at: 2026-10-22T14:40Z
