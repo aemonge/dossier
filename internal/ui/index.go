@@ -864,6 +864,13 @@ func activePlanningText(change openspec.Change) string {
 	if len(change.Artifacts) == 0 {
 		return ""
 	}
+	if !change.StatusEnriched && change.Diagnostic != "" {
+		count := 0
+		for range change.Artifacts {
+			count++
+		}
+		return fmt.Sprintf("files %d · status unavailable", count)
+	}
 	done, total, strays := 0, 0, 0
 	for _, artifact := range change.Artifacts {
 		if artifact.Source == openspec.ArtifactSourceStatus {
@@ -956,7 +963,7 @@ func (m *Model) renderActiveItem(ch openspec.Change, cursor bool, layout activeR
 		metadata = append(metadata, padding+m.theme.Styles.Help.Render(text))
 	}
 	if layout.diagnosticWidth > 0 {
-		text := truncateIndexText(activeDiagnosticText(ch), layout.diagnosticWidth)
+		text := elideDiagnosticText(activeDiagnosticText(ch), layout.diagnosticWidth)
 		metadata = append(metadata, m.theme.Styles.Error.Render(text)+strings.Repeat(" ", layout.diagnosticWidth-lipgloss.Width(text)))
 	}
 	if len(metadata) > 0 {
@@ -977,6 +984,25 @@ func truncateIndexText(text string, width int) string {
 		runes = runes[:len(runes)-1]
 	}
 	return string(runes) + "."
+}
+
+// elideDiagnosticText keeps both ends of a diagnostic — the failing command
+// at the head and the error at the tail — eliding only the middle, so the
+// reason a change is degraded stays readable in narrow panes.
+func elideDiagnosticText(text string, width int) string {
+	if lipgloss.Width(text) <= width {
+		return text
+	}
+	if width <= 1 {
+		return "."
+	}
+	runes := []rune(text)
+	head := width * 2 / 3
+	tail := width - head - 1
+	if head < 1 || tail < 1 || head+tail >= len(runes) {
+		return truncateIndexText(text, width)
+	}
+	return string(runes[:head]) + "…" + string(runes[len(runes)-tail:])
 }
 
 func rightAlignIndexRow(left, right string, width int) string {
@@ -1098,15 +1124,20 @@ func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexI
 		left += m.theme.Styles.Help.Render(" …")
 	}
 	change, _ := m.indexItemChange(item)
-	return rightAlignIndexRow(left, m.renderArtifactStatusBadge(change, artifact), contentWidth)
+	return rightAlignIndexRow(left, m.renderArtifactStatusBadge(change, artifact, item.archived), contentWidth)
 }
 
-func (m *Model) renderArtifactStatusBadge(change openspec.Change, artifact openspec.ChangeArtifact) string {
+func (m *Model) renderArtifactStatusBadge(change openspec.Change, artifact openspec.ChangeArtifact, archived bool) string {
 	badge := func(style lipgloss.Style, label string) string {
 		return style.Bold(true).Reverse(true).Render("[" + label + "]")
 	}
-	if change.StatusEnriched && artifact.Source == openspec.ArtifactSourceDiscovered {
-		return badge(m.theme.Styles.Section, "stray")
+	// Archived changes shipped: their discovered artifacts keep rendering as
+	// authored history rather than stray or degraded rows.
+	if artifact.Source == openspec.ArtifactSourceDiscovered && !archived {
+		if change.StatusEnriched {
+			return badge(m.theme.Styles.Section, "stray")
+		}
+		return badge(m.theme.Styles.ProgressDone, "discovered")
 	}
 	switch artifact.Status {
 	case openspec.ArtifactStatusDone:

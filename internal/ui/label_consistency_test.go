@@ -157,11 +157,8 @@ func TestRenderDegradedChangeHonest(t *testing.T) {
 	if strings.Contains(changeLine, "planning") {
 		t.Errorf("degraded change must not claim a planning fraction: %q", changeLine)
 	}
-	if !strings.Contains(changeLine, "openspec status") {
-		t.Errorf("diagnostic must keep the failing command readable: %q", changeLine)
-	}
-	if !strings.Contains(changeLine, "not found") {
-		t.Errorf("diagnostic must keep the error tail readable (middle elision, never the tail): %q", changeLine)
+	if !strings.Contains(changeLine, "…") {
+		t.Errorf("diagnostic must elide from the middle (…), never tail-truncate to '.': %q", changeLine)
 	}
 
 	row := lineContaining(lines, "4-tasks")
@@ -173,6 +170,22 @@ func TestRenderDegradedChangeHonest(t *testing.T) {
 	}
 	if strings.Contains(row, "[authored]") {
 		t.Errorf("degraded rows must not badge [authored]: %q", row)
+	}
+}
+
+// The both-ends guarantee — failing command at the head, error at the tail —
+// is pinned here where the width is controlled; render-level width depends on
+// the change-row layout.
+func TestElideDiagnosticTextKeepsBothEnds(t *testing.T) {
+	diagnostic := "! openspec status --change agent-messages-io --json: load schema ramona-plan: schema not found in catalog"
+	elided := elideDiagnosticText(diagnostic, 80)
+	for _, want := range []string{"openspec status", "not found", "…"} {
+		if !strings.Contains(elided, want) {
+			t.Errorf("elided diagnostic must keep %q: %q", want, elided)
+		}
+	}
+	if got := elideDiagnosticText(diagnostic, 200); got != diagnostic {
+		t.Errorf("diagnostic fitting the width must pass through unchanged: %q", got)
 	}
 }
 

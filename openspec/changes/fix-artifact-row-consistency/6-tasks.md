@@ -35,11 +35,11 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 - [x] Step 1 — Failing degraded tests: `[discovered]` badges, `files N · status unavailable`, middle-elided diagnostic
       start: 2026-10-22T15:05Z · elapsed: 4m · check: `go test ./internal/ui/ -run 'TestRenderDegraded|TestDiscoveryNever'` — red for the right reasons (planning 0/4 + tail-truncated diagnostic + discovery marking done)
       paths: internal/ui/label_consistency_test.go
+      commit: 765cd43 — fix-artifact-row-consistency: Task 3 Step 1 — degraded tests [x]
+- [x] Step 2 — Discovery stops hardcoding done; degraded header and diagnostic rendering
+      start: 2026-10-22T15:15Z · elapsed: 8m · check: `go test ./internal/ui/ ./internal/openspec/` — green (only environmental git-wrapper test fails, exec 126); archived changes stamp done so History keeps authored rows
+      paths: internal/openspec/loader.go, internal/ui/index.go, internal/ui/label_consistency_test.go
       commit: pending — receipt below
-- [ ] Step 2 — Discovery stops hardcoding done; degraded header and diagnostic rendering
-      start: · elapsed: · check: `go test ./internal/ui/ ./internal/openspec/`
-      paths: internal/openspec/loader.go, internal/openspec/cli.go, internal/ui/index.go
-      commit: · fix-artifact-row-consistency: Task 3 Step 2 — honest degraded rendering [x]
 
 ## Task 4 — Verification
 

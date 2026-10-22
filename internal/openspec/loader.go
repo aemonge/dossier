@@ -232,6 +232,11 @@ func (l *Loader) ListArchiveChangesFrom(root string) ([]Change, error) {
 	for _, dir := range dirs {
 		cleanName, dispDate := parseArchiveName(dir)
 		ch := l.loadChangeFromDir(filepath.Join(archiveDir, dir), cleanName, dispDate)
+		// Archived changes shipped: their artifacts render as authored
+		// history, never as degraded or stray rows.
+		for i := range ch.Artifacts {
+			ch.Artifacts[i].Status = ArtifactStatusDone
+		}
 		changes = append(changes, ch)
 	}
 	return changes, nil
@@ -357,7 +362,7 @@ func (l *Loader) loadDiscoveredArtifacts(ch *Change) {
 		ch.Artifacts = append(ch.Artifacts, ChangeArtifact{
 			ID:            id,
 			OutputPattern: pattern,
-			Status:        ArtifactStatusDone,
+			Status:        ArtifactStatusUnknown,
 			Outputs:       artifactOutputs,
 			Source:        ArtifactSourceDiscovered,
 		})
