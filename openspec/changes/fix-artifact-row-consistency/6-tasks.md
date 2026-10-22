@@ -39,15 +39,15 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 - [x] Step 2 — Discovery stops hardcoding done; degraded header and diagnostic rendering
       start: 2026-10-22T15:15Z · elapsed: 8m · check: `go test ./internal/ui/ ./internal/openspec/` — green (only environmental git-wrapper test fails, exec 126); archived changes stamp done so History keeps authored rows
       paths: internal/openspec/loader.go, internal/ui/index.go, internal/ui/label_consistency_test.go
-      commit: pending — receipt below
+      commit: aa535e9 — fix-artifact-row-consistency: Task 3 Step 2 — honest degraded rendering [x]
 
 ## Task 4 — Verification
 
 > Spec: fix-artifact-row-consistency
 
-- [ ] Step 1 — Full gate: gofmt, vet, build, lint, full suite with race
-      start: · elapsed: · check: `go vet ./... && go test ./...`
-      paths: .
-      commit: · fix-artifact-row-consistency: Task 4 Step 1 — full verification [x]
+- [x] Step 1 — Full gate: gofmt, vet, build, lint, full suite with race
+      start: 2026-10-22T15:30Z · elapsed: 10m · check: gofmt/vet/build/lint clean; `go test ./...` green except 7 git-spawning tests (internal/git ×6, TestGitSUnstageStaged) intercepted by the gate's git wrapper (exec 126, untouched paths) — receipts deferred to the human's ungated terminal; race clean of DATA RACE
+      paths: internal/ui/hierarchy_test.go, internal/ui/label_consistency_test.go, internal/openspec/loader.go, internal/ui/index.go
+      commit: pending — receipt below
 - [ ] Human validation — run dossier against `~/galactica` and `~/projects/kernel-rust`, observe the refined Requirements' final claim
       response: · outcome: · at:

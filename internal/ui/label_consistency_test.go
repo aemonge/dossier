@@ -128,8 +128,8 @@ func indexOfLineContaining(lines []string, needle string) int {
 
 func TestRenderDegradedChangeHonest(t *testing.T) {
 	degraded := openspec.Change{
-		Name:   "agent-messages-io",
-		Schema: "ramona-plan",
+		Name:       "agent-messages-io",
+		Schema:     "ramona-plan",
 		Diagnostic: "openspec status --change agent-messages-io --json: load schema ramona-plan: schema not found in catalog",
 		Artifacts: []openspec.ChangeArtifact{
 			{ID: "1-idea", Source: openspec.ArtifactSourceDiscovered, Outputs: []openspec.ArtifactOutput{{RelativePath: "1-idea.md", DisplayName: "1-idea", Present: true}}},

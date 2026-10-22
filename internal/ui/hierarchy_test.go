@@ -258,6 +258,7 @@ func TestRenderActiveRowsUseStableTableColumns(t *testing.T) {
 
 func TestRenderSchemaAwareHierarchy(t *testing.T) {
 	change := hierarchyChange("fix-cache", "bugfix")
+	change.StatusEnriched = true
 	change.Diagnostic = "degraded status"
 	m := &Model{
 		project:      &openspec.Project{Changes: []openspec.Change{change}},
