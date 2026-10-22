@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -122,6 +124,88 @@ func indexOfLineContaining(lines []string, needle string) int {
 		}
 	}
 	return -1
+}
+
+func TestRenderDegradedChangeHonest(t *testing.T) {
+	degraded := openspec.Change{
+		Name:   "agent-messages-io",
+		Schema: "ramona-plan",
+		Diagnostic: "openspec status --change agent-messages-io --json: load schema ramona-plan: schema not found in catalog",
+		Artifacts: []openspec.ChangeArtifact{
+			{ID: "1-idea", Source: openspec.ArtifactSourceDiscovered, Outputs: []openspec.ArtifactOutput{{RelativePath: "1-idea.md", DisplayName: "1-idea", Present: true}}},
+			{ID: "2-plan", Source: openspec.ArtifactSourceDiscovered, Outputs: []openspec.ArtifactOutput{{RelativePath: "2-plan.md", DisplayName: "2-plan", Present: true}}},
+			{ID: "3-execution", Source: openspec.ArtifactSourceDiscovered, Outputs: []openspec.ArtifactOutput{{RelativePath: "3-execution.md", DisplayName: "3-execution", Present: true}}},
+			{ID: "4-tasks", Source: openspec.ArtifactSourceDiscovered, Outputs: []openspec.ArtifactOutput{{RelativePath: "4-tasks.md", DisplayName: "4-tasks", Present: true}}},
+		},
+	}
+	m := &Model{
+		project: &openspec.Project{Changes: []openspec.Change{degraded}},
+		index: indexState{
+			ExpandedSpecs:     make(map[int]bool),
+			ExpandedChanges:   map[string]bool{"active:agent-messages-io": true},
+			ExpandedArtifacts: make(map[string]bool),
+		},
+		theme: Theme{Styles: BuildStyles(DarkColors)},
+		width: 100,
+	}
+	lines := plainIndexLines(t, m)
+
+	changeLine := lineContaining(lines, "agent-messages-io")
+	if !strings.Contains(changeLine, "files 4 · status unavailable") {
+		t.Errorf("degraded change must render files N · status unavailable, got: %q", changeLine)
+	}
+	if strings.Contains(changeLine, "planning") {
+		t.Errorf("degraded change must not claim a planning fraction: %q", changeLine)
+	}
+	if !strings.Contains(changeLine, "openspec status") {
+		t.Errorf("diagnostic must keep the failing command readable: %q", changeLine)
+	}
+	if !strings.Contains(changeLine, "not found") {
+		t.Errorf("diagnostic must keep the error tail readable (middle elision, never the tail): %q", changeLine)
+	}
+
+	row := lineContaining(lines, "4-tasks")
+	if row == "" {
+		t.Fatalf("expected a 4-tasks row:\n%s", strings.Join(lines, "\n"))
+	}
+	if !strings.Contains(row, "[discovered]") {
+		t.Errorf("degraded rows must badge [discovered]: %q", row)
+	}
+	if strings.Contains(row, "[authored]") {
+		t.Errorf("degraded rows must not badge [authored]: %q", row)
+	}
+}
+
+func TestDiscoveryNeverMarksAuthored(t *testing.T) {
+	root := t.TempDir()
+	changeDir := filepath.Join(root, "openspec", "changes", "demo")
+	if err := os.MkdirAll(changeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"1-idea.md", "2-plan.md", "4-tasks.md"} {
+		if err := os.WriteFile(filepath.Join(changeDir, name), []byte("# demo\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	project, err := openspec.LoadFrom(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(project.Changes) != 1 {
+		t.Fatalf("expected one discovered change, got %d", len(project.Changes))
+	}
+	change := project.Changes[0]
+	if change.StatusEnriched {
+		t.Error("discovery alone must not mark a change enriched")
+	}
+	for _, artifact := range change.Artifacts {
+		if artifact.Status != openspec.ArtifactStatusUnknown {
+			t.Errorf("presence on disk must not imply authored: %s has status %q", artifact.ID, artifact.Status)
+		}
+		if artifact.Source != openspec.ArtifactSourceDiscovered {
+			t.Errorf("discovered artifact %s must keep its source, got %q", artifact.ID, artifact.Source)
+		}
+	}
 }
 
 func TestRenderStrayArtifactsDistinctAndUncounted(t *testing.T) {

@@ -26,16 +26,16 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 - [x] Step 2 — Source-only planning count and stray rendering in `activePlanningText` / badge
       start: 2026-10-22T14:50Z · elapsed: 5m · check: `go test ./internal/ui/ ./internal/openspec/` — green (only environmental git-wrapper test fails, exec 126)
       paths: internal/ui/index.go, internal/openspec/cli.go
-      commit: pending — receipt below
+      commit: f296d65 — fix-artifact-row-consistency: Task 2 Step 2 — stray rendering [x]
 
 ## Task 3 — Honest degraded mode
 
 > Spec: fix-artifact-row-consistency
 
-- [ ] Step 1 — Failing degraded tests: `[discovered]` badges, `files N · status unavailable`, middle-elided diagnostic
-      start: · elapsed: · check: `go test ./internal/ui/ -run 'TestRenderDegraded'`
+- [x] Step 1 — Failing degraded tests: `[discovered]` badges, `files N · status unavailable`, middle-elided diagnostic
+      start: 2026-10-22T15:05Z · elapsed: 4m · check: `go test ./internal/ui/ -run 'TestRenderDegraded|TestDiscoveryNever'` — red for the right reasons (planning 0/4 + tail-truncated diagnostic + discovery marking done)
       paths: internal/ui/label_consistency_test.go
-      commit: · fix-artifact-row-consistency: Task 3 Step 1 — degraded tests [x]
+      commit: pending — receipt below
 - [ ] Step 2 — Discovery stops hardcoding done; degraded header and diagnostic rendering
       start: · elapsed: · check: `go test ./internal/ui/ ./internal/openspec/`
       paths: internal/openspec/loader.go, internal/openspec/cli.go, internal/ui/index.go
