@@ -269,6 +269,7 @@ func (c *CLI) run(root string, args []string) ([]byte, error) {
 
 func (l *Loader) EnrichChange(ch Change, status ChangeStatus) Change {
 	fallback := append([]ChangeArtifact(nil), ch.Artifacts...)
+	ch.StatusEnriched = true
 	fallbackByID := make(map[string]ChangeArtifact, len(fallback))
 	for _, artifact := range fallback {
 		fallbackByID[artifact.ID] = artifact

@@ -13,7 +13,7 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 - [x] Step 2 — Refactor to `artifactLabels(primary, secondary)`; update rows, width, filter, tabs; retire stem-pinned test
       start: 2026-10-22T14:25Z · elapsed: 8m · check: `go test ./internal/ui/ ./internal/openspec/` — green (only gate-wrapper git test fails, exec 126, environmental)
       paths: internal/ui/index.go, internal/ui/index_refresh_test.go
-      commit: pending — receipt below
+      commit: 76e8a52 — fix-artifact-row-consistency: Task 1 Step 2 — artifactLabels refactor [x]
 
 ## Task 2 — Strays distinct and uncounted
 
@@ -22,11 +22,11 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 - [x] Step 1 — Failing stray tests: `[stray]` badge, alpha after the Spec's steps, excluded count, ` · N strays` suffix
       start: 2026-10-22T14:40Z · elapsed: 4m · check: `go test ./internal/ui/ -run 'TestRenderStrayArtifactsDistinctAndUncounted'` — red for the right reasons (strays badge [authored] today)
       paths: internal/ui/label_consistency_test.go, internal/openspec/loader.go
-      commit: pending — receipt below
-- [ ] Step 2 — Source-only planning count and stray rendering in `activePlanningText` / badge
-      start: · elapsed: · check: `go test ./internal/ui/`
+      commit: 5f5f81d — fix-artifact-row-consistency: Task 2 Step 1 — stray tests [x]
+- [x] Step 2 — Source-only planning count and stray rendering in `activePlanningText` / badge
+      start: 2026-10-22T14:50Z · elapsed: 5m · check: `go test ./internal/ui/ ./internal/openspec/` — green (only environmental git-wrapper test fails, exec 126)
       paths: internal/ui/index.go, internal/openspec/cli.go
-      commit: · fix-artifact-row-consistency: Task 2 Step 2 — stray rendering [x]
+      commit: pending — receipt below
 
 ## Task 3 — Honest degraded mode
 

@@ -864,13 +864,32 @@ func activePlanningText(change openspec.Change) string {
 	if len(change.Artifacts) == 0 {
 		return ""
 	}
-	done := 0
+	done, total, strays := 0, 0, 0
 	for _, artifact := range change.Artifacts {
+		if artifact.Source == openspec.ArtifactSourceStatus {
+			total++
+			if artifact.Status == openspec.ArtifactStatusDone {
+				done++
+			}
+			continue
+		}
+		if change.StatusEnriched {
+			strays++
+			continue
+		}
+		total++
 		if artifact.Status == openspec.ArtifactStatusDone {
 			done++
 		}
 	}
-	return fmt.Sprintf("planning %d/%d", done, len(change.Artifacts))
+	if total == 0 {
+		return ""
+	}
+	text := fmt.Sprintf("planning %d/%d", done, total)
+	if strays > 0 {
+		text += " · " + strconv.Itoa(strays) + " strays"
+	}
+	return text
 }
 
 func activeTasksText(change openspec.Change) string {
@@ -1078,12 +1097,16 @@ func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexI
 	if len(artifact.Outputs) > 1 && !m.index.ExpandedArtifacts[item.identity] {
 		left += m.theme.Styles.Help.Render(" …")
 	}
-	return rightAlignIndexRow(left, m.renderArtifactStatusBadge(artifact), contentWidth)
+	change, _ := m.indexItemChange(item)
+	return rightAlignIndexRow(left, m.renderArtifactStatusBadge(change, artifact), contentWidth)
 }
 
-func (m *Model) renderArtifactStatusBadge(artifact openspec.ChangeArtifact) string {
+func (m *Model) renderArtifactStatusBadge(change openspec.Change, artifact openspec.ChangeArtifact) string {
 	badge := func(style lipgloss.Style, label string) string {
 		return style.Bold(true).Reverse(true).Render("[" + label + "]")
+	}
+	if change.StatusEnriched && artifact.Source == openspec.ArtifactSourceDiscovered {
+		return badge(m.theme.Styles.Section, "stray")
 	}
 	switch artifact.Status {
 	case openspec.ArtifactStatusDone:
