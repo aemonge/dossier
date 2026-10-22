@@ -114,3 +114,71 @@ func TestRenderArtifactRowsSuppressRedundantSecondary(t *testing.T) {
 		t.Errorf("classic schema where output stem equals artifact ID should not repeat the name, got %d occurrences: %q", got, proposalRow)
 	}
 }
+
+func indexOfLineContaining(lines []string, needle string) int {
+	for i, line := range lines {
+		if strings.Contains(line, needle) {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestRenderStrayArtifactsDistinctAndUncounted(t *testing.T) {
+	specStatus := func(id string, status openspec.ArtifactStatus, outputs ...openspec.ArtifactOutput) openspec.ChangeArtifact {
+		return openspec.ChangeArtifact{ID: id, Status: status, Source: openspec.ArtifactSourceStatus, Outputs: outputs}
+	}
+	stray := func(id, file string) openspec.ChangeArtifact {
+		return openspec.ChangeArtifact{
+			ID: id, Status: openspec.ArtifactStatusDone, Source: openspec.ArtifactSourceDiscovered,
+			Outputs: []openspec.ArtifactOutput{{RelativePath: file, DisplayName: strings.TrimSuffix(file, ".md"), Present: true}},
+		}
+	}
+	change := openspec.Change{
+		Name: "fix-startup-race", Schema: "spec", StatusEnriched: true,
+		Artifacts: []openspec.ChangeArtifact{
+			specStatus("idea", openspec.ArtifactStatusDone, openspec.ArtifactOutput{RelativePath: "1-idea.md", DisplayName: "1-idea", Present: true}),
+			specStatus("requirements", openspec.ArtifactStatusDone, openspec.ArtifactOutput{RelativePath: "2-drafted-requirements.md", DisplayName: "2-drafted-requirements", Present: true}),
+			specStatus("research", openspec.ArtifactStatusDone, openspec.ArtifactOutput{RelativePath: "3-research.md", DisplayName: "3-research", Present: true}),
+			specStatus("refined-requirements", openspec.ArtifactStatusReady),
+			specStatus("plan", openspec.ArtifactStatusBlocked),
+			specStatus("tasks", openspec.ArtifactStatusBlocked),
+			stray("2-proposition", "2-proposition.md"),
+			stray("2-requirements-a", "2-requirements-a.md"),
+			stray("3-proposal", "3-proposal.md"),
+		},
+	}
+	m := &Model{
+		project: &openspec.Project{Changes: []openspec.Change{change}},
+		index: indexState{
+			ExpandedSpecs:     make(map[int]bool),
+			ExpandedChanges:   map[string]bool{"active:fix-startup-race": true},
+			ExpandedArtifacts: make(map[string]bool),
+		},
+		theme: Theme{Styles: BuildStyles(DarkColors)},
+		width: 100,
+	}
+	lines := plainIndexLines(t, m)
+
+	changeLine := lineContaining(lines, "fix-startup-race")
+	if !strings.Contains(changeLine, "planning 3/6 · 3 strays") {
+		t.Errorf("planning fraction must count status-source steps only, with the stray suffix: %q", changeLine)
+	}
+	lastStep := indexOfLineContaining(lines, "refined-requirements")
+	firstStray := indexOfLineContaining(lines, "2-proposition")
+	if lastStep < 0 || firstStray < 0 || firstStray < lastStep {
+		t.Errorf("strays must render after the Spec's steps: lastStep=%d firstStray=%d", lastStep, firstStray)
+	}
+	for _, stem := range []string{"2-proposition", "2-requirements-a", "3-proposal"} {
+		row := lineContaining(lines, stem)
+		if row == "" {
+			t.Fatalf("expected stray row %q:\n%s", stem, strings.Join(lines, "\n"))
+		}
+		if !strings.Contains(row, "[stray]") {
+			t.Errorf("stray row %q must badge [stray]: %q", stem, row)
+		}
+		if strings.Contains(row, "[authored]") {
+			t.Errorf("stray row %q must not badge [authored]: %q", stem, row)
+		}
+	}
+}

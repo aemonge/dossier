@@ -19,10 +19,10 @@ Step states: `[ ]` Pending, `[-]` Running/interrupted/failed, `[x]` Complete.
 
 > Spec: fix-artifact-row-consistency
 
-- [ ] Step 1 — Failing stray tests: `[stray]` badge, alpha after the Spec's steps, excluded count, ` · N strays` suffix
-      start: · elapsed: · check: `go test ./internal/ui/ -run 'TestRenderStray'`
-      paths: internal/ui/label_consistency_test.go
-      commit: · fix-artifact-row-consistency: Task 2 Step 1 — stray tests [x]
+- [x] Step 1 — Failing stray tests: `[stray]` badge, alpha after the Spec's steps, excluded count, ` · N strays` suffix
+      start: 2026-10-22T14:40Z · elapsed: 4m · check: `go test ./internal/ui/ -run 'TestRenderStrayArtifactsDistinctAndUncounted'` — red for the right reasons (strays badge [authored] today)
+      paths: internal/ui/label_consistency_test.go, internal/openspec/loader.go
+      commit: pending — receipt below
 - [ ] Step 2 — Source-only planning count and stray rendering in `activePlanningText` / badge
       start: · elapsed: · check: `go test ./internal/ui/`
       paths: internal/ui/index.go, internal/openspec/cli.go

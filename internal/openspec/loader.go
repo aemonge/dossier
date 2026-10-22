@@ -50,7 +50,11 @@ type Change struct {
 	DisplayDate string
 	Schema      string
 	Diagnostic  string
-	Artifacts   []ChangeArtifact
+	// StatusEnriched marks a change whose artifacts were merged with the
+	// openspec status ladder: discovery-only strays render distinctly and the
+	// planning fraction counts status-source artifacts only.
+	StatusEnriched bool
+	Artifacts      []ChangeArtifact
 }
 
 func (ch Change) ArtifactByID(id string) (ChangeArtifact, bool) {
