@@ -247,7 +247,8 @@ func (m *Model) matchesFilter(item indexItem, lowerQuery string) bool {
 			for _, output := range artifact.Outputs {
 				outputNames = append(outputNames, output.RelativePath)
 			}
-			return contains(artifact.ID, artifactDisplayLabel(artifact), artifact.OutputPattern, strings.Join(artifact.Requires, " "), strings.Join(outputNames, " "))
+			_, secondary := artifactLabels(artifact)
+			return contains(artifact.ID, secondary, artifact.OutputPattern, strings.Join(artifact.Requires, " "), strings.Join(outputNames, " "))
 		}
 	case indexKindArtifactOutput:
 		if change, ok := m.indexItemChange(item); ok && item.artifactIdx < len(change.Artifacts) {
@@ -600,6 +601,7 @@ func (m *Model) renderIndexContent() (string, int) {
 	contentWidth := m.width - 2
 	activeLayout := m.buildActiveRowLayout(contentWidth)
 	artifactIDWidth := m.buildArtifactIDWidth()
+	artifactSecondaryWidth := m.buildArtifactSecondaryWidth()
 	var sb strings.Builder
 	line := 0
 	cursorLine := 0
@@ -709,7 +711,7 @@ func (m *Model) renderIndexContent() (string, int) {
 				sb.WriteString(m.renderActiveItem(ch, childCursor, activeLayout) + "\n")
 			case indexKindArtifact:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
-					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor, contentWidth, artifactIDWidth) + "\n")
+					sb.WriteString(m.renderArtifactItem(ch.Artifacts[childItem.artifactIdx], childItem, childCursor, contentWidth, artifactIDWidth, artifactSecondaryWidth) + "\n")
 				}
 			case indexKindArtifactOutput:
 				if ch, ok := m.indexItemChange(childItem); ok && childItem.artifactIdx < len(ch.Artifacts) {
@@ -999,12 +1001,32 @@ func (m *Model) buildArtifactIDWidth() int {
 	return min(width, 24)
 }
 
-// artifactDisplayLabel names an artifact row by what is actually read from
-// disk: when the artifact resolves to exactly one present output file, its
-// display name (e.g. "1-idea" for ramona-plan's 1-idea.md) is shown instead
-// of the bare schema ID, so custom naming schemes stay visible. Multi-output
-// artifacts (e.g. "specs") and not-yet-written artifacts keep the schema ID.
-func artifactDisplayLabel(artifact openspec.ChangeArtifact) string {
+func (m *Model) buildArtifactSecondaryWidth() int {
+	width := 0
+	secondaryWidth := func(artifacts []openspec.ChangeArtifact) {
+		for _, artifact := range artifacts {
+			_, secondary := artifactLabels(artifact)
+			width = max(width, lipgloss.Width(secondary))
+		}
+	}
+	if m.project != nil {
+		for _, change := range m.project.Changes {
+			secondaryWidth(change.Artifacts)
+		}
+	}
+	for _, change := range m.index.ArchiveChanges {
+		secondaryWidth(change.Artifacts)
+	}
+	return min(width, 24)
+}
+
+// artifactLabels splits an artifact's name into a stable primary label (the
+// schema artifact ID — independent of disk state) and an optional secondary
+// label: the display name of the single present output file (e.g. "1-idea"
+// for a schema that numbers its templates), suppressed when it matches the
+// ID so classic proposal/specs/design/tasks naming stays clean.
+func artifactLabels(artifact openspec.ChangeArtifact) (primary, secondary string) {
+	primary = artifact.ID
 	label := ""
 	present := 0
 	for _, output := range artifact.Outputs {
@@ -1016,23 +1038,39 @@ func artifactDisplayLabel(artifact openspec.ChangeArtifact) string {
 			label = output.DisplayName
 		}
 	}
-	if present == 1 && label != "" {
-		return label
+	if present == 1 && label != "" && label != artifact.ID {
+		secondary = label
 	}
-	return artifact.ID
+	return primary, secondary
 }
 
-func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool, contentWidth, idWidth int) string {
+// artifactDisplayLabel is the single-name view of artifactLabels: the schema
+// artifact ID — used by artifact tabs and wherever one stable name is needed.
+func artifactDisplayLabel(artifact openspec.ChangeArtifact) string {
+	primary, _ := artifactLabels(artifact)
+	return primary
+}
+
+func (m *Model) renderArtifactItem(artifact openspec.ChangeArtifact, item indexItem, cursor bool, contentWidth, idWidth, secondaryWidth int) string {
 	cursorMark := "    "
 	if cursor {
 		cursorMark = "  " + m.theme.Styles.ProgressDone.Render("▶") + " "
 	}
-	id := truncateIndexText(artifactDisplayLabel(artifact), idWidth)
+	primary, secondary := artifactLabels(artifact)
+	id := truncateIndexText(primary, idWidth)
 	name := m.theme.Styles.BaseText.Render(id)
 	if cursor {
 		name = m.theme.Styles.IndexActive.Render(id)
 	}
 	left := cursorMark + name + strings.Repeat(" ", max(0, idWidth-lipgloss.Width(id)))
+	if secondaryWidth > 0 {
+		if secondary != "" {
+			rendered := truncateIndexText(secondary, secondaryWidth)
+			left += " " + m.theme.Styles.Help.Render(rendered) + strings.Repeat(" ", max(0, secondaryWidth-lipgloss.Width(secondary)))
+		} else {
+			left += strings.Repeat(" ", 1+secondaryWidth)
+		}
+	}
 	if len(artifact.Requires) > 0 {
 		left += "  " + m.theme.Styles.TaskCodeCyan.Render("requires") + " " +
 			m.theme.Styles.Help.Render(strings.Join(artifact.Requires, ", "))

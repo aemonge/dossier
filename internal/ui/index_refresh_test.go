@@ -416,25 +416,25 @@ func TestEnrichedArtifactsShowDiskFileLabels(t *testing.T) {
 	m.refreshIndexViewport()
 	cursorOnArtifactRow(t, m, "idea")
 
-	// Labels show what is read from disk (numbered file stems), while the
-	// row identity stays the schema-declared artifact ID for stability.
+	// Rows keep the schema-declared artifact ID as the primary label, with
+	// the numbered disk file stem as dimmed secondary text.
 	content, _ := m.renderIndexContent()
 	plain := stripAnsiText(content)
 	for _, want := range []string{"1-idea", "2-plan", "3-execution", "4-tasks"} {
 		if !strings.Contains(plain, want) {
-			t.Fatalf("index must label artifacts by disk file name, missing %q", want)
+			t.Fatalf("index must show the disk file stem as secondary label, missing %q", want)
 		}
 	}
 	if got := m.selectedIndexIdentity(); got != "active:demo:artifact:idea" {
 		t.Fatalf("identity must stay schema-based, got %q", got)
 	}
 
-	// Viewer tab bar shows the disk names too.
+	// Viewer tab bar shows the stable schema IDs, not the disk stems.
 	m.mode = ModeNormal
 	m.changeIdx = 0
 	m.selectDefaultArtifact()
 	bar := stripAnsiText(m.renderTabBar())
-	for _, want := range []string{"1-idea", "2-plan", "3-execution", "4-tasks"} {
+	for _, want := range []string{"idea", "plan", "execution", "tasks"} {
 		if !strings.Contains(bar, want) {
 			t.Fatalf("tab bar missing %q: %q", want, bar)
 		}
@@ -461,13 +461,13 @@ func TestMultiOutputArtifactKeepsSchemaIDLabel(t *testing.T) {
 	m := refreshTestModel(t, root)
 	enrichInitial(t, m)
 
-	// "tasks" still resolves to one file (4-tasks.md) -> numbered label.
+	// "tasks" resolves to one file (4-tasks.md): ID stays primary, stem secondary.
 	tasks, ok := m.project.Changes[0].ArtifactByID("tasks")
 	if !ok {
 		t.Fatal("expected tasks artifact")
 	}
-	if got := artifactDisplayLabel(tasks); got != "4-tasks" {
-		t.Fatalf("mono-output label = %q, want 4-tasks", got)
+	if primary, secondary := artifactLabels(tasks); primary != "tasks" || secondary != "4-tasks" {
+		t.Fatalf("mono-output labels = (%q, %q), want (tasks, 4-tasks)", primary, secondary)
 	}
 }
 
